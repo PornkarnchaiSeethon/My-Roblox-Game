@@ -38,26 +38,44 @@ local function DoSomethingWithALoadedProfile(player, profile)
 	print(player.Name .. " owns " .. tostring(profile.Data.Cash) .. " now!")
 end
 
-function module.Start()
-	Players.PlayerAdded:Connect(function(player)
-		local profile = ProfileStore:LoadProfileAsync("Player_" .. player.UserId)
-		if profile ~= nil then
-			profile:AddUserId(player.UserId)
-			profile:Reconcile()
-			profile:ListenToRelease(function()
-				Profiles[player] = nil
-				player:Kick()
-			end)
-			if player:IsDescendantOf(Players) == true then
-				Profiles[player] = profile
-				DoSomethingWithALoadedProfile(player, profile)
-			else
-				profile:Release()
-			end
-		else
-			player:Kick()
+do
+	local function AddExp(player, exp)
+		local profile = Profiles["Player" .. player.UserId]
+		if not profile then
+			warn("can't find player profile")
+			return
 		end
-	end)
+		profile.Data.CurrentExp += exp
+		while profile.Data.CurrentExp >= profile.Data.ExpForNextLevel do
+			profile.Data.CurrentExp -= profile.Data.ExpForNextLevel
+			profile.Data.CurrentLevel += 1
+			profile.Data.ExpForNextLevel = profile.Data.CurrentLevel * 100
+		end
+	end
+end
+
+local function PlayerAdd(player)
+	local profile = ProfileStore:LoadProfileAsync("Player_" .. player.UserId)
+	if profile ~= nil then
+		profile:AddUserId(player.UserId)
+		profile:Reconcile()
+		profile:ListenToRelease(function()
+			Profiles[player] = nil
+			player:Kick()
+		end)
+		if player:IsDescendantOf(Players) == true then
+			Profiles[player] = profile
+			DoSomethingWithALoadedProfile(player, profile)
+		else
+			profile:Release()
+		end
+	else
+		player:Kick()
+	end
+end
+
+function module.Start()
+	Players.PlayerAdded:Connect(PlayerAdd)
 
 	Players.PlayerRemoving:Connect(function(player)
 		local profile = Profiles[player]

@@ -1,12 +1,13 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local Service = script.Service
+local Service = ServerScriptService.Services
 
 local loaded = {}
 
--- เฟส 1: require + Init
 for _, moduleScript in Service:GetDescendants() do
-	if not moduleScript:IsA("ModuleScript") then continue end
+	if not moduleScript:IsA("ModuleScript") then
+		continue
+	end
 
 	local ok, result = pcall(require, moduleScript)
 	if not ok then
@@ -14,7 +15,9 @@ for _, moduleScript in Service:GetDescendants() do
 		continue
 	end
 
-	if type(result) ~= "table" then continue end
+	if type(result) ~= "table" then
+		continue
+	end
 
 	if type(result.Init) == "function" then
 		local initOk, err = pcall(result.Init)
@@ -27,7 +30,6 @@ for _, moduleScript in Service:GetDescendants() do
 	table.insert(loaded, { name = moduleScript.Name, module = result })
 end
 
--- เฟส 2: Start (แยก thread กัน yield บล็อกตัวอื่น)
 for _, entry in loaded do
 	if type(entry.module.Start) == "function" then
 		task.spawn(function()
