@@ -35,6 +35,7 @@ local function InventoryFrame(props: Props)
 
 	return e("Frame", {
 		Size = UDim2.fromScale(1, 1),
+		Visible = true,
 		BackgroundTransparency = 1,
 	}, {
 		Panel = e("Frame", {

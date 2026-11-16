@@ -5,15 +5,9 @@ export type StackData = {
 	Description: string,
 	Image: string,
 	ItemType: string,
-	IsDropable: boolean,
+	IsDroppable: boolean,
 	Items: { Tool },
 	StackId: number,
-}
-
-export type Armor = {
-	Head: number?,
-	Chest: number?,
-	Legs: number?,
 }
 
 export type Hotbar = {
@@ -26,12 +20,12 @@ export type Hotbar = {
 	Slot7: number?,
 	Slot8: number?,
 	Slot9: number?,
+	Slot10: number?,
 }
 
 export type Inventory = {
 	Inventory: { StackData },
 	Hotbar: { [string]: number },
-	Armor: { [string]: number },
 	NextStackId: number,
 }
 

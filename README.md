@@ -15,3 +15,87 @@ rojo serve
 ```
 
 For more help, check out [the Rojo documentation](https://rojo.space/docs).
+
+## ToolConfig
+
+ข้อมูลของ Tool สำหรับระบบ Inventory อยู่ที่:
+
+```text
+src/shared/Modules/ToolConfig.luau
+```
+
+เพิ่มข้อมูลใน `ToolConfig.Items` โดยชื่อ key ต้องตรงกับ `Tool.Name`
+
+```lua
+ToolConfig.Items = {
+	Wood = {
+		ItemType = "Resource",
+		MaxStack = 10,
+		Description = "ไม้สำหรับก่อสร้าง",
+		Image = "rbxassetid://1234567890",
+		IsDroppable = true,
+	},
+
+	HealthPotion = {
+		ItemType = "Consumable",
+		MaxStack = 5,
+		Description = "ยาเพิ่มพลังชีวิต",
+		Image = "rbxassetid://9876543210",
+		IsDroppable = false,
+	},
+}
+```
+
+### ฟิลด์ของ Tool
+
+| ฟิลด์ | ชนิดข้อมูล | รายละเอียด |
+| --- | --- | --- |
+| `ItemType` | `string` | ประเภทของไอเทม |
+| `MaxStack` | `number` | จำนวนสูงสุดต่อ Stack |
+| `Description` | `string` | คำอธิบายไอเทม |
+| `Image` | `string` | รูปภาพไอเทม เช่น `rbxassetid://...` |
+| `IsDroppable` | `boolean` | อนุญาตให้ผู้เล่นทิ้งไอเทมหรือไม่ |
+
+### ค่า MaxStack เริ่มต้น
+
+| ประเภท | จำนวนสูงสุด |
+| --- | ---: |
+| `Weapon` | 1 |
+| `Armor` | 1 |
+| `Special` | 1 |
+| `Consumable` | 5 |
+| `Resource` | 10 |
+
+สามารถกำหนด `MaxStack` เฉพาะ Tool เพื่อเขียนทับค่าเริ่มต้นได้
+
+```lua
+IronOre = {
+	ItemType = "Resource",
+	MaxStack = 64,
+}
+```
+
+### ตำแหน่ง Tool ใน Roblox Studio
+
+```text
+ServerStorage
+└── AllItems
+    ├── Wood
+    ├── HealthPotion
+    └── IronOre
+```
+
+Tool ที่สามารถถูกทิ้งและเก็บกลับได้ควรมี `Handle` อยู่ภายใน Tool
+
+### ลำดับการอ่านข้อมูล
+
+ระบบจะอ่านข้อมูลตามลำดับต่อไปนี้:
+
+1. ข้อมูลใน `ToolConfig.Items`
+2. Attribute ของ Tool เช่น `ItemType` และ `IsDroppable`
+3. Property ของ Tool เช่น `ToolTip` และ `TextureId`
+4. ค่าเริ่มต้นของระบบ หากไม่มีข้อมูลระบุไว้
+
+ดังนั้น Tool เดิมที่ยังใช้ Attribute อยู่จะยังทำงานได้ แต่ Tool ใหม่แนะนำให้กำหนดข้อมูลใน `ToolConfig`
+
+ข้อมูลที่บันทึกใน ProfileService จะเก็บชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะถูกอ่านใหม่จาก `ToolConfig` ตอนโหลดข้อมูลผู้เล่น

@@ -1,248 +1,556 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StarterPack = game:GetService("StarterPack")
+local ServerStorage = game:GetService("ServerStorage")
+local HttpService = game:GetService("HttpService")
 
-local Types = require(ReplicatedStorage.Shared.Modules.Types)
-local Janitor = require(ReplicatedStorage.Packages.janitor)
+local Modules = ReplicatedStorage:WaitForChild("Packages")
+local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
+local ToolConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("ToolConfig"))
+local Janitor = require(Modules:WaitForChild("janitor"))
+local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
+local DataService = require(script.Parent.DataService)
 
-local AUTOSAVE_TIME = 15
-local DEFAULT_MAX_STACK = 1
-local DEFAULT_ITEM_TYPE = "Special"
+local InventoryServer = {}
+InventoryServer.AllInventories = {} :: {[Player]: Types.Inventory}
+InventoryServer.Janitors = {}
+InventoryServer.CharacterJanitors = {}
+InventoryServer.Respawning = {} :: {[Player]: boolean}
+InventoryServer.HasLoaded = {} :: {[Player]: boolean}
+InventoryServer.ToolCanTouch = {} :: {[BasePart]: boolean}
 
-local InventoryService = {}
-InventoryService.AllInventories = {} :: { [Player]: Types.Inventory }
-InventoryService.Janitors = {}
+InventoryServer.MaxStacks = 20
+function InventoryServer.SerializeInventory(inv: Types.Inventory)
+	local saveTable = {
+		Hotbar = table.clone(inv.Hotbar),
+		NextStackId = inv.NextStackId,
+		Stacks = {},
+	}
 
-InventoryService.MaxStackData = {
-	Armor = 1,
-	Special = 1,
-	Consumable = 5,
-	Resource = 10,
-	Weapon = 1,
-}
-InventoryService.MaxStacks = 20
-
--- ---------------------------------------------------------------------------
--- Save / Load (placeholder)
--- ---------------------------------------------------------------------------
-
-function InventoryService.SaveData(player: Player)
-	print("Saving data for player: " .. player.Name)
-end
-
-function InventoryService.LoadData(player: Player)
-	print("Loading data for player: " .. player.Name)
-end
-
--- ---------------------------------------------------------------------------
--- Register / Unregister
--- ---------------------------------------------------------------------------
-
-function InventoryService.RegisterItem(player: Player, tool: Instance)
-	if not tool:IsA("Tool") then
-		return
+	for _, stackData in inv.Inventory do
+		table.insert(saveTable.Stacks, {
+			Name = stackData.Name,
+			Count = #stackData.Items,
+			StackId = stackData.StackId,
+		})
 	end
 
-	local inv = InventoryService.AllInventories[player]
-	if not inv then
-		return
+	return saveTable
+end
+
+function InventoryServer.SyncProfile(player: Player, profileOverride)
+	local inv = InventoryServer.AllInventories[player]
+	local profile = profileOverride or DataService.GetProfile(player)
+	if not inv or not profile then return false end
+
+	profile.Data.Items = InventoryServer.SerializeInventory(inv)
+	return true
+end
+
+function InventoryServer.SerializeForClient(inv: Types.Inventory)
+	local update = {
+		Hotbar = table.clone(inv.Hotbar),
+		NextStackId = inv.NextStackId,
+		Stacks = {},
+	}
+
+	for _, stackData in inv.Inventory do
+		table.insert(update.Stacks, {
+			Name = stackData.Name,
+			Description = stackData.Description,
+			Image = stackData.Image,
+			ItemType = stackData.ItemType,
+			IsDroppable = stackData.IsDroppable,
+			Count = #stackData.Items,
+			StackId = stackData.StackId,
+		})
 	end
 
-	-- Already registered (e.g. Backpack -> Character when equipping)
+	return update
+end
+
+function InventoryServer.UpdateClient(player: Player)
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return end
+
+	InventoryServer.SyncProfile(player)
+	Network.Inventory.Update.sendTo(
+		HttpService:JSONEncode(InventoryServer.SerializeForClient(inv)),
+		player
+	)
+end
+
+function InventoryServer.CheckInventoryFull(player: Player, tool: Tool): boolean
+	if not tool:IsA("Tool") then return true end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return true end
+
+	if #inv.Inventory < InventoryServer.MaxStacks then
+		return false
+	end
+
+	local toolData = ToolConfig.Get(tool)
+	local maxPerStack = toolData.MaxStack or 1
+
+	for _, stackData in inv.Inventory do
+		if stackData.Name == tool.Name and #stackData.Items < maxPerStack then
+			return false
+		end
+	end
+	return true
+end
+
+function InventoryServer.RegisterItem(player: Player, tool: Tool)
+	if not tool:IsA("Tool") then return end
+	if InventoryServer.Respawning[player] then return end
+
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return end
+
 	for _, stackData in inv.Inventory do
 		if table.find(stackData.Items, tool) then
+			InventoryServer.UpdateDroppedItem(tool)
 			return
 		end
 	end
 
-	-- Try to add to an existing stack that still has room
+	InventoryServer.UpdateDroppedItem(tool)
+
+	local toolData = ToolConfig.Get(tool)
+	local itemType = toolData.ItemType or "Resource"
+	local maxStack = toolData.MaxStack or 1
+
 	for _, stackData in inv.Inventory do
-		local maxInStack = InventoryService.MaxStackData[stackData.ItemType] or DEFAULT_MAX_STACK
-		if stackData.Name == tool.Name and #stackData.Items < maxInStack then
+		if stackData.Name == tool.Name and #stackData.Items < maxStack then
 			table.insert(stackData.Items, tool)
+			InventoryServer.UpdateClient(player)
 			return
 		end
 	end
 
-	-- Otherwise create a new stack
-	if #inv.Inventory >= InventoryService.MaxStacks then
-		warn("Inventory is full for player: " .. player.Name)
+	if #inv.Inventory >= InventoryServer.MaxStacks then
+		task.defer(function()
+			tool.Parent = workspace
+		end)
+		Network.Inventory.Error.sendTo("Inventory is full!", player)
 		return
 	end
 
-	local stack: Types.StackData = {
+	inv.NextStackId += 1
+	local newStack: Types.StackData = {
 		Name = tool.Name,
-		Description = tool.ToolTip,
-		Image = tool.TextureId,
-		ItemType = tool:GetAttribute("ItemType") or DEFAULT_ITEM_TYPE,
-		IsDropable = tool:GetAttribute("IsDroppable") == true,
-		Items = { tool },
+		Description = toolData.Description or "",
+		Image = toolData.Image or "",
+		ItemType = itemType,
+		IsDroppable = toolData.IsDroppable ~= false,
+		Items = {tool},
 		StackId = inv.NextStackId,
 	}
-	inv.NextStackId += 1
-	table.insert(inv.Inventory, stack)
+	table.insert(inv.Inventory, newStack)
+
+	if itemType ~= "Armor" then
+		for i = 1, 10 do
+			local slotKey = "Slot" .. i
+			if inv.Hotbar[slotKey] == nil then
+				InventoryServer.EquipToHotbar(player, newStack.StackId, i)
+				break
+			end
+		end
+	end
+
+	InventoryServer.UpdateClient(player)
 end
 
-function InventoryService.UnregisterItem(player: Player, tool: Instance)
-	if not tool:IsA("Tool") then
+function InventoryServer.UnregisterItem(player: Player, tool: Tool)
+	if not tool:IsA("Tool") then return end
+	if InventoryServer.Respawning[player] then return end
+
+	local backpack = player:FindFirstChild("Backpack")
+	local char = player.Character
+	if tool.Parent == backpack or (char and tool.Parent == char) then
 		return
 	end
 
-	-- Still owned by the player (just moved between Backpack and Character)
-	if tool.Parent == player.Backpack or (player.Character ~= nil and tool.Parent == player.Character) then
-		return
-	end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return end
 
-	local inv = InventoryService.AllInventories[player]
-	if not inv then
-		return
-	end
-
-	for index, stackData in inv.Inventory do
-		local found = table.find(stackData.Items, tool)
-		if found then
-			table.remove(stackData.Items, found)
-
+	for stackIndex, stackData in inv.Inventory do
+		local itemIndex = table.find(stackData.Items, tool)
+		if itemIndex then
+			table.remove(stackData.Items, itemIndex)
 			if #stackData.Items == 0 then
-				table.remove(inv.Inventory, index)
-
-				-- Clear Hotbar / Armor slots that pointed to this stack
-				for slot, stackId in inv.Hotbar do
-					if stackId == stackData.StackId then
-						inv.Hotbar[slot] = nil
-					end
-				end
-				for slot, stackId in inv.Armor do
-					if stackId == stackData.StackId then
-						inv.Armor[slot] = nil
-					end
-				end
+				InventoryServer.UnequipFromHotbar(player, stackData.StackId)
+				table.remove(inv.Inventory, stackIndex)
 			end
-
+			InventoryServer.UpdateClient(player)
 			break
 		end
 	end
 end
 
--- ---------------------------------------------------------------------------
--- Player lifecycle
--- ---------------------------------------------------------------------------
+function InventoryServer.GetInventoryData(player: Player): Types.Inventory
+	while not InventoryServer.AllInventories[player] do
+		task.wait()
+	end
+	return InventoryServer.AllInventories[player]
+end
 
-function InventoryService.OnPlayerAdd(player: Player)
-	local backpack = player:WaitForChild("Backpack")
+function InventoryServer.EquipToHotbar(player: Player, stackId: number, slotNum: number)
+	if typeof(stackId) ~= "number" or typeof(slotNum) ~= "number" then return end
+	if slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv or not InventoryServer.FindStackFromId(player, stackId) then return end
 
-	for _, tool in StarterPack:GetChildren() do
-		while not backpack:FindFirstChild(tool.Name) do
-			if not player.Parent then
-				return -- player left while waiting
-			end
-			task.wait()
+	InventoryServer.UnequipFromHotbar(player, stackId)
+	inv.Hotbar["Slot" .. slotNum] = stackId
+	InventoryServer.UpdateClient(player)
+end
+
+function InventoryServer.UnequipFromHotbar(player: Player, stackId: number)
+	if typeof(stackId) ~= "number" then return end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return end
+
+	for slotKey, equippedId in inv.Hotbar do
+		if equippedId == stackId then
+			inv.Hotbar[slotKey] = nil
 		end
 	end
+	InventoryServer.UpdateClient(player)
+end
 
-	-- Main janitor (lives as long as the player is in the game)
-	local janitor = Janitor.new()
-	InventoryService.Janitors[player] = janitor
-	janitor:GiveChore(function()
-		InventoryService.Janitors[player] = nil
-		InventoryService.AllInventories[player] = nil
-	end)
-
-	InventoryService.AllInventories[player] = {
-		Inventory = {},
-		Hotbar = {},
-		Armor = {},
-		NextStackId = 0,
-	}
-
-	-- Character janitor (cleaned every time the character respawns)
-	local charJanitor = Janitor.new()
-	janitor:GiveChore(function()
-		charJanitor:Clean()
-	end)
-
-	if not player.Character then
-		player.CharacterAdded:Wait()
+function InventoryServer.FindStackFromId(player: Player, stackId: number): Types.StackData?
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return nil end
+	for _, stackData in inv.Inventory do
+		if stackData.StackId == stackId then
+			return stackData
+		end
 	end
+	return nil
+end
 
-	-- Player left (or was cleaned up) while we were waiting
-	if InventoryService.Janitors[player] ~= janitor then
+function InventoryServer.HoldItem(player: Player, slotNum: number)
+	if typeof(slotNum) ~= "number" or slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
+	local inv = InventoryServer.AllInventories[player]
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not inv or not char or not hum then return end
+
+	local stackId = inv.Hotbar["Slot" .. slotNum]
+	if not stackId then
+		hum:UnequipTools()
 		return
 	end
 
-	InventoryService.LoadData(player)
+	local stackData = InventoryServer.FindStackFromId(player, stackId)
+	if not stackData or #stackData.Items == 0 then return end
 
-	local function charAdded(char: Model)
-		charJanitor:Clean() -- drop connections from the previous character
-
-		local currentBackpack = player:WaitForChild("Backpack")
-
-		for _, tool in currentBackpack:GetChildren() do
-			InventoryService.RegisterItem(player, tool)
+	local currentTool = char:FindFirstChildOfClass("Tool")
+	if currentTool and table.find(stackData.Items, currentTool) then
+		hum:UnequipTools()
+	else
+		local tool = stackData.Items[1]
+		if tool and tool:IsDescendantOf(player) then
+			hum:EquipTool(tool)
 		end
-
-		charJanitor:GiveChore(char.ChildAdded:Connect(function(child: Instance)
-			InventoryService.RegisterItem(player, child)
-		end))
-		charJanitor:GiveChore(char.ChildRemoved:Connect(function(child: Instance)
-			InventoryService.UnregisterItem(player, child)
-		end))
-		charJanitor:GiveChore(currentBackpack.ChildAdded:Connect(function(child: Instance)
-			InventoryService.RegisterItem(player, child)
-		end))
-		charJanitor:GiveChore(currentBackpack.ChildRemoved:Connect(function(child: Instance)
-			InventoryService.UnregisterItem(player, child)
-		end))
 	end
-
-	task.spawn(charAdded, player.Character :: Model)
-	janitor:GiveChore(player.CharacterAdded:Connect(charAdded))
 end
 
-function InventoryService.OnPlayerRemove(player: Player)
-	local janitor = InventoryService.Janitors[player]
-	if not janitor then
-		return -- already cleaned (BindToClose + PlayerRemoving can both fire)
-	end
-
-	InventoryService.SaveData(player) -- save BEFORE cleaning
-	janitor:Clean()
+function InventoryServer.UnholdItems(player: Player)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum then hum:UnequipTools() end
 end
 
--- ---------------------------------------------------------------------------
--- Start
--- ---------------------------------------------------------------------------
-
-function InventoryService.Start()
-	for _, player: Player in Players:GetPlayers() do
-		task.spawn(InventoryService.OnPlayerAdd, player)
+function InventoryServer.DropItem(player: Player, stackId: number): boolean
+	if typeof(stackId) ~= "number" then return false end
+	local stackData = InventoryServer.FindStackFromId(player, stackId)
+	if not stackData or not stackData.IsDroppable then
+		Network.Inventory.Error.sendTo("You cannot drop this item!", player)
+		return false
 	end
 
-	Players.PlayerAdded:Connect(InventoryService.OnPlayerAdd)
-	Players.PlayerRemoving:Connect(InventoryService.OnPlayerRemove)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart
+	local toolToDrop = stackData.Items[1]
+	if not root or not toolToDrop then return false end
+	if toolToDrop.Parent ~= player.Backpack and toolToDrop.Parent ~= char then return false end
 
-	game:BindToClose(function()
-		for _, player: Player in Players:GetPlayers() do
-			InventoryService.OnPlayerRemove(player)
-		end
-	end)
+	toolToDrop.Parent = workspace
+	toolToDrop:PivotTo(root.CFrame * CFrame.new(0, 0, -3))
+	return true
+end
 
-	-- Autosave: spread players evenly across AUTOSAVE_TIME
-	task.spawn(function()
-		while true do
-			local players = Players:GetPlayers()
-			if #players == 0 then
-				task.wait(1) -- avoid a busy loop when the server is empty
-			else
-				for _, player in players do
-					task.wait(AUTOSAVE_TIME / #players)
-					if InventoryService.AllInventories[player] then
-						InventoryService.SaveData(player)
-					end
+function InventoryServer.UpdateDroppedItem(tool: Tool)
+	local handle = tool:FindFirstChild("Handle")
+	if not handle then return end
+
+	if tool.Parent == workspace then
+		for _, part in tool:GetDescendants() do
+			if part:IsA("BasePart") then
+				if InventoryServer.ToolCanTouch[part] == nil then
+					InventoryServer.ToolCanTouch[part] = part.CanTouch
 				end
+				part.CanTouch = false
+				part.CanCollide = true
 			end
 		end
+
+		if not handle:FindFirstChild("DroppedPrompt") then
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "DroppedPrompt"
+			prompt.ObjectText = tool.Name
+			prompt.ActionText = "Pick Up"
+			prompt.Parent = handle
+
+			prompt.Triggered:Connect(function(playerWhoTriggered)
+				if InventoryServer.Respawning[playerWhoTriggered] then return end
+				if tool.Parent ~= workspace or prompt.Parent ~= handle then return end
+				if InventoryServer.CheckInventoryFull(playerWhoTriggered, tool) then
+					Network.Inventory.Error.sendTo("Inventory is full!", playerWhoTriggered)
+					return
+				end
+				local backpack = playerWhoTriggered:FindFirstChild("Backpack")
+				if backpack and tool.Parent == workspace then
+					prompt:Destroy()
+					tool.Parent = backpack
+				end
+			end)
+		end
+	else
+		local prompt = handle:FindFirstChild("DroppedPrompt")
+		if prompt then prompt:Destroy() end
+
+		for _, part in tool:GetDescendants() do
+			if part:IsA("BasePart") then
+				if InventoryServer.ToolCanTouch[part] ~= nil then
+					part.CanTouch = InventoryServer.ToolCanTouch[part]
+				end
+				part.CanCollide = false
+			end
+		end
+	end
+end
+
+function InventoryServer.SaveData(player: Player, profileOverride)
+	if not InventoryServer.HasLoaded[player] then return end
+	InventoryServer.SyncProfile(player, profileOverride)
+end
+
+function InventoryServer.LoadData(player: Player)
+	local profile = DataService.WaitForProfile(player)
+	if not profile then return end
+
+	local savedData = profile.Data.Items
+	if type(savedData) ~= "table" then
+		savedData = {}
+	end
+
+	local backpack = player:WaitForChild("Backpack")
+	local savedStacks = savedData.Stacks
+	if type(savedStacks) ~= "table" then
+		savedStacks = {}
+	end
+
+	local newInv: Types.Inventory = {
+		Inventory = {},
+		Hotbar = if type(savedData.Hotbar) == "table" then savedData.Hotbar else {},
+		NextStackId = if type(savedData.NextStackId) == "number" then savedData.NextStackId else 0,
+	}
+
+	local allItems = ServerStorage:FindFirstChild("AllItems")
+	if allItems then
+		for _, savedStack in savedStacks do
+			if type(savedStack) ~= "table" or type(savedStack.Name) ~= "string" then
+				continue
+			end
+
+			local sample = allItems:FindFirstChild(savedStack.Name)
+			if sample and sample:IsA("Tool") then
+				local itemsTable = {}
+				local toolData = ToolConfig.Get(sample)
+				local itemType = toolData.ItemType or "Resource"
+				local maxCount = toolData.MaxStack or 1
+				local count = math.clamp(math.floor(tonumber(savedStack.Count) or 0), 0, maxCount)
+
+				for i = 1, count do
+					local clone = sample:Clone()
+					clone.Parent = backpack
+					table.insert(itemsTable, clone)
+				end
+
+				if #itemsTable > 0 then
+					table.insert(newInv.Inventory, {
+						Name = sample.Name,
+						Description = toolData.Description or "",
+						Image = toolData.Image or "",
+						ItemType = itemType,
+						IsDroppable = toolData.IsDroppable ~= false,
+						Items = itemsTable,
+						StackId = if type(savedStack.StackId) == "number" then savedStack.StackId else 0,
+					})
+				end
+			else
+				warn("Missing item template in ServerStorage.AllItems: " .. tostring(savedStack.Name))
+			end
+		end
+	elseif #savedStacks > 0 then
+		warn("Inventory data warning")
+	end
+
+	InventoryServer.AllInventories[player] = newInv
+	InventoryServer.HasLoaded[player] = true
+	InventoryServer.UpdateClient(player)
+end
+
+function InventoryServer.OnPlayerAdded(player: Player)
+	local janitor = Janitor.new()
+	InventoryServer.Janitors[player] = janitor
+	janitor:add(function()
+		local characterJanitor = InventoryServer.CharacterJanitors[player]
+		if characterJanitor then
+			characterJanitor:cleanup()
+		end
+		InventoryServer.CharacterJanitors[player] = nil
+		InventoryServer.Janitors[player] = nil
+		InventoryServer.AllInventories[player] = nil
+		InventoryServer.Respawning[player] = nil
+		InventoryServer.HasLoaded[player] = nil
+	end)
+
+	local inv: Types.Inventory = {
+		Inventory = {},
+		Hotbar = {},
+		NextStackId = 0,
+	}
+	InventoryServer.AllInventories[player] = inv
+
+	local char = player.Character or player.CharacterAdded:Wait()
+	InventoryServer.LoadData(player)
+
+	local function onCharacterAdded(character: Model)
+		local previousCharacterJanitor = InventoryServer.CharacterJanitors[player]
+		if previousCharacterJanitor then
+			previousCharacterJanitor:cleanup()
+		end
+
+		local characterJanitor = Janitor.new()
+		InventoryServer.CharacterJanitors[player] = characterJanitor
+
+		local backpack = player:WaitForChild("Backpack")
+		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+
+		for _, tool in backpack:GetChildren() do
+			if tool:IsA("Tool") then
+				InventoryServer.RegisterItem(player, tool)
+			end
+		end
+
+		characterJanitor:add(backpack.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") then
+				InventoryServer.RegisterItem(player, child)
+			end
+		end))
+		characterJanitor:add(backpack.ChildRemoved:Connect(function(child)
+			if child:IsA("Tool") then
+				InventoryServer.UnregisterItem(player, child)
+			end
+		end))
+
+		characterJanitor:add(character.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") then
+				InventoryServer.RegisterItem(player, child)
+			end
+		end))
+		characterJanitor:add(character.ChildRemoved:Connect(function(child)
+			if child:IsA("Tool") then
+				InventoryServer.UnregisterItem(player, child)
+			end
+		end))
+
+		characterJanitor:add(humanoid.Died:Connect(function()
+			InventoryServer.Respawning[player] = true
+			humanoid:UnequipTools()
+
+			local tempFolder = Instance.new("Folder")
+			tempFolder.Name = player.Name .. "_TempItems"
+			tempFolder.Parent = ServerStorage
+
+			for _, item in backpack:GetChildren() do
+				if item:IsA("Tool") then
+					item.Parent = tempFolder
+				end
+			end
+
+			local newChar = player.CharacterAdded:Wait()
+			local newBackpack = player:WaitForChild("Backpack")
+			for _, item in tempFolder:GetChildren() do
+				item.Parent = newBackpack
+			end
+			tempFolder:Destroy()
+			InventoryServer.Respawning[player] = false
+			InventoryServer.UpdateClient(player)
+		end))
+	end
+
+	task.spawn(onCharacterAdded, char)
+	janitor:add(player.CharacterAdded:Connect(onCharacterAdded))
+end
+
+function InventoryServer.OnPlayerRemoving(player: Player)
+	InventoryServer.SaveData(player)
+	if InventoryServer.Janitors[player] then
+		InventoryServer.Janitors[player]:cleanup()
+	end
+end
+
+function InventoryServer.Start()
+	DataService.OnBeforeProfileRelease(function(player, profile)
+		InventoryServer.SaveData(player, profile)
+	end)
+
+	for _, player in Players:GetPlayers() do
+		task.spawn(InventoryServer.OnPlayerAdded, player)
+	end
+	Players.PlayerAdded:Connect(InventoryServer.OnPlayerAdded)
+	Players.PlayerRemoving:Connect(InventoryServer.OnPlayerRemoving)
+
+	game:BindToClose(function()
+		for _, player in Players:GetPlayers() do
+			InventoryServer.SaveData(player)
+		end
+	end)
+
+	for _, tool in workspace:GetChildren() do
+		if tool:IsA("Tool") then
+			InventoryServer.UpdateDroppedItem(tool)
+		end
+	end
+	workspace.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") then
+			InventoryServer.UpdateDroppedItem(child)
+		end
+	end)
+
+	Network.Inventory.Request.listen(function(_, player)
+		InventoryServer.GetInventoryData(player)
+		InventoryServer.UpdateClient(player)
+	end)
+	Network.Inventory.EquipToHotbar.listen(function(data, player)
+		InventoryServer.EquipToHotbar(player, data.stackId, data.slotNum)
+	end)
+	Network.Inventory.UnequipFromHotbar.listen(function(data, player)
+		InventoryServer.UnequipFromHotbar(player, data.stackId)
+	end)
+	Network.Inventory.HoldItem.listen(function(data, player)
+		InventoryServer.HoldItem(player, data.slotNum)
+	end)
+	Network.Inventory.UnholdItems.listen(function(_, player)
+		InventoryServer.UnholdItems(player)
+	end)
+	Network.Inventory.DropItem.listen(function(data, player)
+		InventoryServer.DropItem(player, data.stackId)
 	end)
 end
 
-return InventoryService
+return InventoryServer

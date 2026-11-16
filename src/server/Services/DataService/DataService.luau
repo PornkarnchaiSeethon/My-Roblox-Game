@@ -8,15 +8,36 @@ local ProfileTemplate = {
 	CurrentExp = 0,
 	ExpForNextLevel = 0,
 	Cash = 0,
-	Items = {},
+	Items = {
+		Hotbar = {},
+		NextStackId = 0,
+		Stacks = {},
+	},
+	Plot = {},
 	LogInTimes = 0,
 }
 
 local ProfileStore = ProfileService.GetProfileStore("PlayerData", ProfileTemplate)
 
 local Profiles = {}
+local BeforeProfileRelease = {}
 
 local module = {}
+
+function module.GetProfile(player)
+	return Profiles[player]
+end
+
+function module.WaitForProfile(player)
+	while player.Parent and not Profiles[player] do
+		task.wait()
+	end
+	return Profiles[player]
+end
+
+function module.OnBeforeProfileRelease(callback)
+	table.insert(BeforeProfileRelease, callback)
+end
 
 local function GiveCash(profile, amount)
 	if profile.Data.Cash == nil then
@@ -80,6 +101,9 @@ function module.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		local profile = Profiles[player]
 		if profile ~= nil then
+			for _, callback in BeforeProfileRelease do
+				callback(player, profile)
+			end
 			profile:Release()
 		end
 	end)
