@@ -4,6 +4,23 @@ local ByteNet = require(ReplicatedStorage.Packages:WaitForChild("bytenet"))
 
 return {
 	Inventory = ByteNet.defineNamespace("InventoryNetwork", function()
+		local ClientStack = ByteNet.struct({
+			Name = ByteNet.string,
+			DisplayName = ByteNet.string,
+			Description = ByteNet.string,
+			Image = ByteNet.string,
+			ItemType = ByteNet.string,
+			IsDroppable = ByteNet.bool,
+			Count = ByteNet.uint16,
+			StackId = ByteNet.int32,
+		})
+
+		local ClientInventory = ByteNet.struct({
+			Hotbar = ByteNet.map(ByteNet.string, ByteNet.int32),
+			NextStackId = ByteNet.int32,
+			Stacks = ByteNet.array(ClientStack),
+		})
+
 		return {
 			Request = ByteNet.definePacket({
 				value = ByteNet.nothing,
@@ -33,7 +50,7 @@ return {
 				}),
 			}),
 			Update = ByteNet.definePacket({
-				value = ByteNet.string,
+				value = ClientInventory,
 			}),
 			Error = ByteNet.definePacket({
 				value = ByteNet.string,

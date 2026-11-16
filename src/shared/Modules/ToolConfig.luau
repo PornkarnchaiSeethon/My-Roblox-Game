@@ -1,4 +1,5 @@
 export type ToolData = {
+	DisplayName: string?,
 	ItemType: string?,
 	MaxStack: number?,
 	Description: string?,
@@ -20,6 +21,7 @@ ToolConfig.MaxStackByType = {
 ToolConfig.Items = {
 	-- Example:
 	-- Wood = {
+	-- 	DisplayName = "Wood",
 	-- 	ItemType = "Resource",
 	-- 	MaxStack = 10,
 	-- 	Description = "Basic building material",
@@ -36,7 +38,8 @@ local function getToolName(toolOrName: Tool | string): string
 end
 
 function ToolConfig.Get(toolOrName: Tool | string): ToolData
-	local configured = ToolConfig.Items[getToolName(toolOrName)] or {}
+	local toolName = getToolName(toolOrName)
+	local configured = ToolConfig.Items[toolName] or {}
 	local tool = if typeof(toolOrName) == "Instance" and toolOrName:IsA("Tool")
 		then toolOrName
 		else nil
@@ -63,8 +66,10 @@ function ToolConfig.Get(toolOrName: Tool | string): ToolData
 	end
 
 	local maxStack = configured.MaxStack or ToolConfig.MaxStackByType[itemType] or 1
+	local displayName = configured.DisplayName or if tool then tool.Name else toolName
 
 	return {
+		DisplayName = displayName,
 		ItemType = itemType,
 		MaxStack = math.max(1, math.floor(maxStack)),
 		Description = description or "",

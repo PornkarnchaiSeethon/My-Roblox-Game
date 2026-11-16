@@ -29,6 +29,7 @@ src/shared/Modules/ToolConfig.luau
 ```lua
 ToolConfig.Items = {
 	Wood = {
+		DisplayName = "Wood",
 		ItemType = "Resource",
 		MaxStack = 10,
 		Description = "ไม้สำหรับก่อสร้าง",
@@ -50,6 +51,7 @@ ToolConfig.Items = {
 
 | ฟิลด์ | ชนิดข้อมูล | รายละเอียด |
 | --- | --- | --- |
+| `DisplayName` | `string` | ชื่อที่แสดงใน UI เปลี่ยนได้โดยไม่กระทบข้อมูลที่บันทึก |
 | `ItemType` | `string` | ประเภทของไอเทม |
 | `MaxStack` | `number` | จำนวนสูงสุดต่อ Stack |
 | `Description` | `string` | คำอธิบายไอเทม |
@@ -99,6 +101,8 @@ Tool ที่สามารถถูกทิ้งและเก็บกล
 ดังนั้น Tool เดิมที่ยังใช้ Attribute อยู่จะยังทำงานได้ แต่ Tool ใหม่แนะนำให้กำหนดข้อมูลใน `ToolConfig`
 
 ข้อมูลที่บันทึกใน ProfileService จะเก็บชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะถูกอ่านใหม่จาก `ToolConfig` ตอนโหลดข้อมูลผู้เล่น
+
+`ToolConfig.Items` ใช้ key เป็น ID ของ Tool เช่น `iron_sword` หรือ `oak_wood` ส่วน `DisplayName` ใช้สำหรับแสดงผลเท่านั้น และสามารถเปลี่ยนได้โดยไม่เปลี่ยน ID ที่ใช้ Save/Stack
 
 ## Server Services
 

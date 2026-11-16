@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
-local HttpService = game:GetService("HttpService")
 
 local Modules = ReplicatedStorage:WaitForChild("Packages")
 local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
@@ -17,6 +16,7 @@ InventoryServer.CharacterJanitors = {}
 InventoryServer.Respawning = {} :: {[Player]: boolean}
 InventoryServer.HasLoaded = {} :: {[Player]: boolean}
 InventoryServer.ToolCanTouch = {} :: {[BasePart]: boolean}
+InventoryServer.ActionCooldowns = {} :: {[Player]: {[string]: number}}
 
 InventoryServer.MaxStacks = 20
 function InventoryServer.SerializeInventory(inv: Types.Inventory)
@@ -56,6 +56,7 @@ function InventoryServer.SerializeForClient(inv: Types.Inventory)
 	for _, stackData in inv.Inventory do
 		table.insert(update.Stacks, {
 			Name = stackData.Name,
+			DisplayName = stackData.DisplayName,
 			Description = stackData.Description,
 			Image = stackData.Image,
 			ItemType = stackData.ItemType,
@@ -73,10 +74,7 @@ function InventoryServer.UpdateClient(player: Player)
 	if not inv then return end
 
 	InventoryServer.SyncProfile(player)
-	Network.Inventory.Update.sendTo(
-		HttpService:JSONEncode(InventoryServer.SerializeForClient(inv)),
-		player
-	)
+	Network.Inventory.Update.sendTo(InventoryServer.SerializeForClient(inv), player)
 end
 
 function InventoryServer.CheckInventoryFull(player: Player, tool: Tool): boolean
@@ -138,6 +136,7 @@ function InventoryServer.RegisterItem(player: Player, tool: Tool)
 	inv.NextStackId += 1
 	local newStack: Types.StackData = {
 		Name = tool.Name,
+		DisplayName = toolData.DisplayName or tool.Name,
 		Description = toolData.Description or "",
 		Image = toolData.Image or "",
 		ItemType = itemType,
@@ -151,7 +150,7 @@ function InventoryServer.RegisterItem(player: Player, tool: Tool)
 		for i = 1, 10 do
 			local slotKey = "Slot" .. i
 			if inv.Hotbar[slotKey] == nil then
-				InventoryServer.EquipToHotbar(player, newStack.StackId, i)
+				InventoryServer.EquipToHotbar(player, newStack.StackId, i, true)
 				break
 			end
 		end
@@ -178,7 +177,7 @@ function InventoryServer.UnregisterItem(player: Player, tool: Tool)
 		if itemIndex then
 			table.remove(stackData.Items, itemIndex)
 			if #stackData.Items == 0 then
-				InventoryServer.UnequipFromHotbar(player, stackData.StackId)
+				InventoryServer.UnequipFromHotbar(player, stackData.StackId, true)
 				table.remove(inv.Inventory, stackIndex)
 			end
 			InventoryServer.UpdateClient(player)
@@ -187,35 +186,45 @@ function InventoryServer.UnregisterItem(player: Player, tool: Tool)
 	end
 end
 
-function InventoryServer.GetInventoryData(player: Player): Types.Inventory
-	while not InventoryServer.AllInventories[player] do
+function InventoryServer.GetInventoryData(player: Player): Types.Inventory?
+	while player.Parent and not InventoryServer.AllInventories[player] do
 		task.wait()
 	end
 	return InventoryServer.AllInventories[player]
 end
 
-function InventoryServer.EquipToHotbar(player: Player, stackId: number, slotNum: number)
-	if typeof(stackId) ~= "number" or typeof(slotNum) ~= "number" then return end
-	if slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
-	local inv = InventoryServer.AllInventories[player]
-	if not inv or not InventoryServer.FindStackFromId(player, stackId) then return end
-
-	InventoryServer.UnequipFromHotbar(player, stackId)
-	inv.Hotbar["Slot" .. slotNum] = stackId
-	InventoryServer.UpdateClient(player)
-end
-
-function InventoryServer.UnequipFromHotbar(player: Player, stackId: number)
-	if typeof(stackId) ~= "number" then return end
+local function removeFromHotbar(player: Player, stackId: number)
 	local inv = InventoryServer.AllInventories[player]
 	if not inv then return end
-
 	for slotKey, equippedId in inv.Hotbar do
 		if equippedId == stackId then
 			inv.Hotbar[slotKey] = nil
 		end
 	end
-	InventoryServer.UpdateClient(player)
+end
+
+function InventoryServer.EquipToHotbar(player: Player, stackId: number, slotNum: number, suppressUpdate: boolean?)
+	if typeof(stackId) ~= "number" or typeof(slotNum) ~= "number" then return end
+	if slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv or not InventoryServer.FindStackFromId(player, stackId) then return end
+
+	removeFromHotbar(player, stackId)
+	inv.Hotbar["Slot" .. slotNum] = stackId
+	if not suppressUpdate then
+		InventoryServer.UpdateClient(player)
+	end
+end
+
+function InventoryServer.UnequipFromHotbar(player: Player, stackId: number, suppressUpdate: boolean?)
+	if typeof(stackId) ~= "number" then return end
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return end
+
+	removeFromHotbar(player, stackId)
+	if not suppressUpdate then
+		InventoryServer.UpdateClient(player)
+	end
 end
 
 function InventoryServer.FindStackFromId(player: Player, stackId: number): Types.StackData?
@@ -299,7 +308,7 @@ function InventoryServer.UpdateDroppedItem(tool: Tool)
 		if not handle:FindFirstChild("DroppedPrompt") then
 			local prompt = Instance.new("ProximityPrompt")
 			prompt.Name = "DroppedPrompt"
-			prompt.ObjectText = tool.Name
+			prompt.ObjectText = ToolConfig.Get(tool).DisplayName or tool.Name
 			prompt.ActionText = "Pick Up"
 			prompt.Parent = handle
 
@@ -325,6 +334,7 @@ function InventoryServer.UpdateDroppedItem(tool: Tool)
 			if part:IsA("BasePart") then
 				if InventoryServer.ToolCanTouch[part] ~= nil then
 					part.CanTouch = InventoryServer.ToolCanTouch[part]
+					InventoryServer.ToolCanTouch[part] = nil
 				end
 				part.CanCollide = false
 			end
@@ -382,6 +392,7 @@ function InventoryServer.LoadData(player: Player)
 				if #itemsTable > 0 then
 					table.insert(newInv.Inventory, {
 						Name = sample.Name,
+						DisplayName = toolData.DisplayName or sample.Name,
 						Description = toolData.Description or "",
 						Image = toolData.Image or "",
 						ItemType = itemType,
@@ -414,6 +425,7 @@ function InventoryServer.OnPlayerAdded(player: Player)
 		InventoryServer.CharacterJanitors[player] = nil
 		InventoryServer.Janitors[player] = nil
 		InventoryServer.AllInventories[player] = nil
+		InventoryServer.ActionCooldowns[player] = nil
 		InventoryServer.Respawning[player] = nil
 		InventoryServer.HasLoaded[player] = nil
 	end)
@@ -482,8 +494,28 @@ function InventoryServer.OnPlayerAdded(player: Player)
 				end
 			end
 
-			local newChar = player.CharacterAdded:Wait()
-			local newBackpack = player:WaitForChild("Backpack")
+			local newChar
+			while player.Parent and not newChar do
+				local currentCharacter = player.Character
+				if currentCharacter and currentCharacter ~= character then
+					newChar = currentCharacter
+					break
+				end
+				task.wait()
+			end
+
+			local newBackpack = player:FindFirstChild("Backpack")
+			while player.Parent and not newBackpack do
+				task.wait()
+				newBackpack = player:FindFirstChild("Backpack")
+			end
+
+			if not player.Parent or not newChar or not newBackpack then
+				tempFolder:Destroy()
+				InventoryServer.Respawning[player] = nil
+				return
+			end
+
 			for _, item in tempFolder:GetChildren() do
 				item.Parent = newBackpack
 			end
@@ -532,23 +564,47 @@ function InventoryServer.Start()
 		end
 	end)
 
+	local function allowAction(player: Player, actionName: string, cooldown: number): boolean
+		local now = os.clock()
+		local playerCooldowns = InventoryServer.ActionCooldowns[player]
+		if not playerCooldowns then
+			playerCooldowns = {}
+			InventoryServer.ActionCooldowns[player] = playerCooldowns
+		end
+
+		local lastAction = playerCooldowns[actionName]
+		if lastAction and now - lastAction < cooldown then
+			return false
+		end
+
+		playerCooldowns[actionName] = now
+		return true
+	end
+
 	Network.Inventory.Request.listen(function(_, player)
-		InventoryServer.GetInventoryData(player)
-		InventoryServer.UpdateClient(player)
+		if not allowAction(player, "Request", 0.25) then return end
+		if InventoryServer.GetInventoryData(player) then
+			InventoryServer.UpdateClient(player)
+		end
 	end)
 	Network.Inventory.EquipToHotbar.listen(function(data, player)
+		if not allowAction(player, "EquipToHotbar", 0.1) then return end
 		InventoryServer.EquipToHotbar(player, data.stackId, data.slotNum)
 	end)
 	Network.Inventory.UnequipFromHotbar.listen(function(data, player)
+		if not allowAction(player, "UnequipFromHotbar", 0.1) then return end
 		InventoryServer.UnequipFromHotbar(player, data.stackId)
 	end)
 	Network.Inventory.HoldItem.listen(function(data, player)
+		if not allowAction(player, "HoldItem", 0.05) then return end
 		InventoryServer.HoldItem(player, data.slotNum)
 	end)
 	Network.Inventory.UnholdItems.listen(function(_, player)
+		if not allowAction(player, "UnholdItems", 0.05) then return end
 		InventoryServer.UnholdItems(player)
 	end)
 	Network.Inventory.DropItem.listen(function(data, player)
+		if not allowAction(player, "DropItem", 0.2) then return end
 		InventoryServer.DropItem(player, data.stackId)
 	end)
 end

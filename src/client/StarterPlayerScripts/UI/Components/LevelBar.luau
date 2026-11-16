@@ -6,7 +6,7 @@ local e = React.createElement
 
 local function LevelBar()
 	return e("Frame", {
-		Size = UDim2.new(0.2,0,0,80),
+		Size = UDim2.new(0.13,0,0,64),
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0.01, 0.2),
 		BackgroundColor3 = Color3.fromRGB(56, 41, 175),
