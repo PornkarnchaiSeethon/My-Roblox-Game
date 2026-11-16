@@ -99,3 +99,129 @@ Tool ที่สามารถถูกทิ้งและเก็บกล
 ดังนั้น Tool เดิมที่ยังใช้ Attribute อยู่จะยังทำงานได้ แต่ Tool ใหม่แนะนำให้กำหนดข้อมูลใน `ToolConfig`
 
 ข้อมูลที่บันทึกใน ProfileService จะเก็บชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะถูกอ่านใหม่จาก `ToolConfig` ตอนโหลดข้อมูลผู้เล่น
+
+## Server Services
+
+Service ฝั่ง Server อยู่ที่ `src/server/Services` และถูกโหลดอัตโนมัติโดย:
+
+```text
+src/server/ServerLoader.server.luau
+```
+
+`ServerLoader` จะค้นหา ModuleScript ทุกไฟล์ในโฟลเดอร์ `Services` จากนั้นเรียก `Init()` และ `Start()` ถ้ามีฟังก์ชันดังกล่าว
+
+### รายการ Service
+
+| Service | ไฟล์หลัก | หน้าที่ |
+| --- | --- | --- |
+| DataService | `DataService/DataService.luau` | โหลดและจัดการ ProfileService ของผู้เล่น |
+| InventoryService | `DataService/InventoryService.luau` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม |
+| PlotService | `PlotService/Server.luau` | สร้าง โหลด บันทึก และลบ Plot ของผู้เล่น |
+| NPCService | `NPCService/` | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC แต่ยังไม่มีการทำงานในปัจจุบัน |
+
+## DataService
+
+DataService ใช้ ProfileService และเปิด ProfileStore ชื่อ `PlayerData`
+
+ข้อมูลเริ่มต้นของผู้เล่นประกอบด้วย:
+
+```lua
+{
+	CurrentLevel = 0,
+	CurrentExp = 0,
+	ExpForNextLevel = 0,
+	Cash = 0,
+	Items = {
+		Hotbar = {},
+		NextStackId = 0,
+		Stacks = {},
+	},
+	Plot = {},
+	LogInTimes = 0,
+}
+```
+
+ฟังก์ชันที่ Service อื่นใช้:
+
+- `GetProfile(player)` คืนค่า Profile ปัจจุบัน
+- `WaitForProfile(player)` รอจนกว่า Profile จะโหลดเสร็จ
+- `OnBeforeProfileRelease(callback)` ลงทะเบียนฟังก์ชันก่อนปล่อย Profile
+
+InventoryService และ PlotService ใช้ callback ก่อนปล่อย Profile เพื่อบันทึกข้อมูลให้ทันก่อนผู้เล่นออกจากเกม
+
+## InventoryService
+
+InventoryService จัดการเรื่องต่อไปนี้:
+
+- ตรวจจับ Tool ใน Backpack และ Character
+- รวม Tool ที่ชื่อเดียวกันเป็น Stack
+- จำกัดจำนวน Stack และจำนวนต่อ Stack
+- จัดการ Hotbar สูงสุด 10 ช่อง
+- Equip และ Unequip Tool
+- ทิ้ง Tool ลง Workspace และเก็บ Tool ที่ตกอยู่ด้วย ProximityPrompt
+- โหลดและบันทึกข้อมูลผ่าน `profile.Data.Items`
+- ส่งข้อมูล Inventory ผ่าน ByteNet
+
+ไฟล์ที่เกี่ยวข้อง:
+
+```text
+src/shared/Modules/ToolConfig.luau
+src/shared/Modules/Network.luau
+ServerStorage/AllItems
+```
+
+ข้อมูลที่บันทึกลง ProfileService จะเก็บเฉพาะชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะอ่านจาก ToolConfig ตอนโหลดกลับมา
+
+## PlotService
+
+PlotService แบ่งหน้าที่เป็นหลาย Module:
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `PlotService/Server.luau` | รับคำสั่งจาก ByteNet และควบคุม lifecycle ของ Plot |
+| `PlotService/PlotManager.luau` | สร้าง ลบ วาง และลบสิ่งของใน Plot |
+| `PlotService/PlotSpawnPool.luau` | จัดสรรจุดเกิด Plot ให้ผู้เล่น |
+| `PlotService/PlotStorage.luau` | โหลดและบันทึกสิ่งของใน Plot ลง ProfileService |
+| `shared/Modules/PlacementValidator.luau` | ตรวจสอบขอบเขตและการชนของสิ่งของ |
+
+สิ่งที่ต้องมีในเกม:
+
+```text
+ServerStorage
+└── Plot                 -- Model ต้องมี PrimaryPart และ Objects
+
+Workspace
+├── Plots                -- Folder สำหรับ Plot ที่ถูกสร้าง
+└── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิด
+
+ReplicatedStorage
+└── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางได้
+```
+
+ข้อมูล Plot จะถูกบันทึกใน `profile.Data.Plot` เป็นชื่อ Model และ CFrame ที่สัมพันธ์กับ Plot ของผู้เล่น
+
+## NPCService
+
+ปัจจุบันมีไฟล์เตรียมไว้ดังนี้:
+
+```text
+src/server/Services/NPCService/AnimController.luau
+src/server/Services/NPCService/EnemyController.luau
+```
+
+ทั้งสองไฟล์ยังไม่มีโค้ดการทำงาน จึงยังไม่มีระบบ Animation หรือ Enemy ที่ถูกเปิดใช้งาน หากเริ่มเพิ่มโค้ด Service ควรคืนค่าเป็นตาราง และใช้ `Init()` หรือ `Start()` ตามรูปแบบของ ServerLoader
+
+## Network
+
+ระบบ Network ทั้งหมดใช้ ByteNet ผ่านไฟล์:
+
+```text
+src/shared/Modules/Network.luau
+```
+
+Namespace ที่ใช้งานอยู่:
+
+- `InventoryNetwork` สำหรับข้อมูลและคำสั่ง Inventory
+- `PlotNetwork` สำหรับการโหลด Plot, วาง และลบสิ่งของ
+
+ไม่ต้องสร้าง RemoteEvent หรือ RemoteFunction เองใน `ReplicatedStorage`
