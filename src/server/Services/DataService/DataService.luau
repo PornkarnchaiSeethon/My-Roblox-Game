@@ -20,6 +20,7 @@ local ProfileTemplate = {
 local ProfileStore = ProfileService.GetProfileStore("PlayerData", ProfileTemplate)
 
 local Profiles = {}
+local LoadingPlayers = {}
 local BeforeProfileRelease = {}
 
 local module = {}
@@ -61,7 +62,7 @@ end
 
 do
 	local function AddExp(player, exp)
-		local profile = Profiles["Player" .. player.UserId]
+		local profile = Profiles[player]
 		if not profile then
 			warn("can't find player profile")
 			return
@@ -76,7 +77,14 @@ do
 end
 
 local function PlayerAdd(player)
+	if Profiles[player] or LoadingPlayers[player] then
+		return
+	end
+	LoadingPlayers[player] = true
+
 	local profile = ProfileStore:LoadProfileAsync("Player_" .. player.UserId)
+	LoadingPlayers[player] = nil
+
 	if profile ~= nil then
 		profile:AddUserId(player.UserId)
 		profile:Reconcile()
@@ -96,6 +104,9 @@ local function PlayerAdd(player)
 end
 
 function module.Start()
+	for _, player in Players:GetPlayers() do
+		task.spawn(PlayerAdd, player)
+	end
 	Players.PlayerAdded:Connect(PlayerAdd)
 
 	Players.PlayerRemoving:Connect(function(player)

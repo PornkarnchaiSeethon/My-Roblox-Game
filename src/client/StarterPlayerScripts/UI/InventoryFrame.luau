@@ -63,6 +63,7 @@ local function InventoryFrame(props: Props)
 	local selectedTab, setSelectedTab = React.useState(props.tabs[1] or "All")
 	local selectedStack = findStack(props.data, props.selectedStackId)
 	local equipped = isEquipped(props.data, props.selectedStackId)
+	local totalStacks = if props.data then #props.data.Stacks else 0
 
 	return e("Frame", {
 		Size = UDim2.fromScale(1, 1),
@@ -70,58 +71,94 @@ local function InventoryFrame(props: Props)
 		BackgroundTransparency = 1,
 	}, {
 		Panel = e("Frame", {
-			Size = UDim2.fromScale(0.72, 0.55),
+			Size = UDim2.fromScale(0.74, 0.6),
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.43),
-			BackgroundColor3 = Color3.new(0, 0, 0),
-			BackgroundTransparency = 0.5,
+			Position = UDim2.fromScale(0.5, 0.44),
+			BackgroundColor3 = Color3.fromRGB(22, 24, 32),
+			BackgroundTransparency = 0.04,
 		}, {
-			Corner = e("UICorner", { CornerRadius = UDim.new(0, 4) }),
-			Stroke = e("UIStroke", { Thickness = 2, Color = Color3.new(0, 0, 0) }),
+			Corner = e("UICorner", { CornerRadius = UDim.new(0, 14) }),
+			Stroke = e("UIStroke", {
+				Thickness = 2,
+				Color = Color3.fromRGB(62, 68, 88),
+			}),
 			SizeLimit = e("UISizeConstraint", {
-				MinSize = Vector2.new(620, 340),
-				MaxSize = Vector2.new(1100, 700),
+				MinSize = Vector2.new(660, 380),
+				MaxSize = Vector2.new(1080, 660),
 			}),
 
-			Title = e("TextLabel", {
-				Size = UDim2.fromOffset(190, 46),
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.04),
-				Rotation = -3,
-				BackgroundTransparency = 1,
-				Text = "Inventory",
-				TextScaled = true,
-				FontFace = Font.fromEnum(Enum.Font.FredokaOne),
-				TextColor3 = Color3.new(1, 1, 1),
-				ZIndex = 2,
+			Header = e("Frame", {
+				Size = UDim2.new(1, 0, 0, 54),
+				BackgroundColor3 = Color3.fromRGB(28, 31, 42),
+				BorderSizePixel = 0,
 			}, {
-				Stroke = e("UIStroke", { Thickness = 2, Color = Color3.new(0, 0, 0) }),
-			}),
-
-			Close = e("TextButton", {
-				Size = UDim2.fromOffset(40, 40),
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(1, 0),
-				BackgroundColor3 = Color3.fromRGB(255, 0, 0),
-				Text = "X",
-				TextScaled = true,
-				FontFace = Font.fromEnum(Enum.Font.FredokaOne),
-				TextColor3 = Color3.new(1, 1, 1),
-				ZIndex = 3,
-				[React.Event.Activated] = props.onClose,
+				Corner = e("UICorner", { CornerRadius = UDim.new(0, 14) }),
+				BottomCover = e("Frame", {
+					Position = UDim2.new(0, 0, 1, -14),
+					Size = UDim2.new(1, 0, 0, 14),
+					BackgroundColor3 = Color3.fromRGB(28, 31, 42),
+					BorderSizePixel = 0,
+				}),
+				Divider = e("Frame", {
+					Position = UDim2.new(0, 0, 1, -1),
+					Size = UDim2.new(1, 0, 0, 1),
+					BackgroundColor3 = Color3.fromRGB(50, 56, 74),
+					BorderSizePixel = 0,
+				}),
+				Title = e("TextLabel", {
+					Position = UDim2.fromOffset(20, 0),
+					Size = UDim2.new(0.5, 0, 1, 0),
+					BackgroundTransparency = 1,
+					Text = "INVENTORY",
+					Font = Enum.Font.GothamBlack,
+					TextSize = 20,
+					TextColor3 = Color3.fromRGB(245, 247, 255),
+					TextXAlignment = Enum.TextXAlignment.Left,
+				}),
+				CapacityBadge = e("Frame", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -64, 0.5, 0),
+					Size = UDim2.fromOffset(82, 28),
+					BackgroundColor3 = Color3.fromRGB(18, 20, 28),
+				}, {
+					Corner = e("UICorner", { CornerRadius = UDim.new(0, 8) }),
+					Stroke = e("UIStroke", { Thickness = 1, Color = Color3.fromRGB(52, 58, 76) }),
+					Label = e("TextLabel", {
+						Size = UDim2.fromScale(1, 1),
+						BackgroundTransparency = 1,
+						Text = `{totalStacks} / 20`,
+						Font = Enum.Font.GothamBold,
+						TextSize = 13,
+						TextColor3 = Color3.fromRGB(180, 190, 215),
+					}),
+				}),
+				Close = e("TextButton", {
+					Size = UDim2.fromOffset(34, 34),
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -14, 0.5, 0),
+					BackgroundColor3 = Color3.fromRGB(210, 65, 75),
+					Text = "X",
+					Font = Enum.Font.GothamBlack,
+					TextSize = 15,
+					TextColor3 = Color3.new(1, 1, 1),
+					AutoButtonColor = true,
+					[React.Event.Activated] = props.onClose,
+				}, {
+					Corner = e("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				}),
 			}),
 
 			Tabs = e(TabBar, {
-				position = UDim2.new(0, 12, 0, 64),
-				size = UDim2.new(0.17, -16, 1, -76),
+				position = UDim2.new(0, 14, 0, 68),
+				size = UDim2.new(0.18, -14, 1, -82),
 				tabs = props.tabs,
 				selected = selectedTab,
 				onSelect = setSelectedTab,
 			}),
 
 			Items = e(ItemGrid, {
-				position = UDim2.new(0.18, 0, 0, 64),
-				size = UDim2.new(0.49, -8, 1, -76),
+				position = UDim2.new(0.18, 10, 0, 68),
+				size = UDim2.new(0.51, -20, 1, -82),
 				data = props.data,
 				selectedTab = selectedTab,
 				selectedStackId = props.selectedStackId,
@@ -129,8 +166,8 @@ local function InventoryFrame(props: Props)
 			}),
 
 			Details = e(DetailPanel, {
-				position = UDim2.new(0.69, 0, 0, 64),
-				size = UDim2.new(0.29, -12, 1, -76),
+				position = UDim2.new(0.69, 0, 0, 68),
+				size = UDim2.new(0.31, -14, 1, -82),
 				stackData = selectedStack,
 				isEquipped = equipped,
 				equipSlot = if equipped then nil else findEmptySlot(props.data),

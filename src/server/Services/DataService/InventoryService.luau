@@ -238,6 +238,61 @@ function InventoryServer.FindStackFromId(player: Player, stackId: number): Types
 	return nil
 end
 
+function InventoryServer.HasItem(player: Player, itemName: string): boolean
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return false end
+	for _, stackData in inv.Inventory do
+		if stackData.Name == itemName and #stackData.Items > 0 then
+			return true
+		end
+	end
+	return false
+end
+
+function InventoryServer.ConsumeItem(player: Player, itemName: string): boolean
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then return false end
+
+	for stackIndex, stackData in inv.Inventory do
+		if stackData.Name == itemName and #stackData.Items > 0 then
+			local tool = table.remove(stackData.Items)
+			if #stackData.Items == 0 then
+				InventoryServer.UnequipFromHotbar(player, stackData.StackId, true)
+				table.remove(inv.Inventory, stackIndex)
+			end
+			if tool then
+				tool:Destroy()
+			end
+			InventoryServer.UpdateClient(player)
+			return true
+		end
+	end
+
+	return false
+end
+
+function InventoryServer.GiveItem(player: Player, itemName: string): boolean
+	local allItems = ServerStorage:FindFirstChild("AllItems")
+	local sample = allItems and allItems:FindFirstChild(itemName)
+	if not sample or not sample:IsA("Tool") then
+		return false
+	end
+
+	if InventoryServer.CheckInventoryFull(player, sample) then
+		return false
+	end
+
+	local backpack = player:FindFirstChild("Backpack")
+	if not backpack then
+		return false
+	end
+
+	local clone = sample:Clone()
+	clone.Parent = backpack
+	InventoryServer.RegisterItem(player, clone)
+	return true
+end
+
 function InventoryServer.HoldItem(player: Player, slotNum: number)
 	if typeof(slotNum) ~= "number" or slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
 	local inv = InventoryServer.AllInventories[player]

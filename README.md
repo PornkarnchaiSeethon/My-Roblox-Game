@@ -16,7 +16,24 @@ rojo serve
 
 For more help, check out [the Rojo documentation](https://rojo.space/docs).
 
-## ToolConfig
+---
+
+## 🎮 ปุ่มควบคุมในเกม (Controls)
+
+| ปุ่ม | ระบบ | การทำงาน |
+| :---: | --- | --- |
+| `B` | Inventory | เปิด / ปิดหน้าต่างกระเป๋า (หรือกดปุ่ม `Bag [B]` บนหน้าจอ) |
+| `1` - `9`, `0` | Hotbar | ถือ / เก็บไอเทมในช่อง Hotbar ที่ 1 - 10 |
+| `F` | Plot Placement | เปิด / ปิดโหมดวางสิ่งของใน Plot ของผู้เล่น |
+| `Q` / `E` | Plot Placement | เปลี่ยนสิ่งของที่จะวาง (ก่อนหน้า / ถัดไป) |
+| `R` | Plot Placement | หมุนสิ่งของทีละ 90 องศา |
+| `G` | Plot Placement | เปิด / ปิดระบบ Snap to Grid (ขนาด 2 Studs) |
+| `Left Click` | Plot Placement | ยืนยันการวางสิ่งของลงใน Plot |
+| `X` | Plot Placement | ลบสิ่งของที่ชี้เมาส์อยู่ใน Plot (และคืนไอเทมเข้ากระเป๋า) |
+
+---
+
+## 🧰 ToolConfig
 
 ข้อมูลของ Tool สำหรับระบบ Inventory อยู่ที่:
 
@@ -24,12 +41,12 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 src/shared/Modules/ToolConfig.luau
 ```
 
-เพิ่มข้อมูลใน `ToolConfig.Items` โดยชื่อ key ต้องตรงกับ `Tool.Name`
+เพิ่มข้อมูลใน `ToolConfig.Items` โดยชื่อ key ต้องตรงกับ `Tool.Name` (แนะนำให้ใช้เป็นรหัส ID เช่น `iron_sword`, `oak_wood` ส่วนชื่อแสดงผลกำหนดที่ `DisplayName`):
 
 ```lua
 ToolConfig.Items = {
-	Wood = {
-		DisplayName = "Wood",
+	oak_wood = {
+		DisplayName = "Oak Wood",
 		ItemType = "Resource",
 		MaxStack = 10,
 		Description = "ไม้สำหรับก่อสร้าง",
@@ -37,7 +54,8 @@ ToolConfig.Items = {
 		IsDroppable = true,
 	},
 
-	HealthPotion = {
+	health_potion = {
+		DisplayName = "Health Potion",
 		ItemType = "Consumable",
 		MaxStack = 5,
 		Description = "ยาเพิ่มพลังชีวิต",
@@ -52,7 +70,7 @@ ToolConfig.Items = {
 | ฟิลด์ | ชนิดข้อมูล | รายละเอียด |
 | --- | --- | --- |
 | `DisplayName` | `string` | ชื่อที่แสดงใน UI เปลี่ยนได้โดยไม่กระทบข้อมูลที่บันทึก |
-| `ItemType` | `string` | ประเภทของไอเทม |
+| `ItemType` | `string` | ประเภทของไอเทม (`Weapon`, `Armor`, `Special`, `Consumable`, `Resource`) |
 | `MaxStack` | `number` | จำนวนสูงสุดต่อ Stack |
 | `Description` | `string` | คำอธิบายไอเทม |
 | `Image` | `string` | รูปภาพไอเทม เช่น `rbxassetid://...` |
@@ -60,13 +78,13 @@ ToolConfig.Items = {
 
 ### ค่า MaxStack เริ่มต้น
 
-| ประเภท | จำนวนสูงสุด |
-| --- | ---: |
-| `Weapon` | 1 |
-| `Armor` | 1 |
-| `Special` | 1 |
-| `Consumable` | 5 |
-| `Resource` | 10 |
+| ประเภท | จำนวนสูงสุด | แท็บใน UI |
+| --- | ---: | --- |
+| `Weapon` | 1 | `Weapons` |
+| `Armor` | 1 | `Misc` |
+| `Special` | 1 | `Tools` |
+| `Consumable` | 5 | `Tools` |
+| `Resource` | 10 | `Resources` |
 
 สามารถกำหนด `MaxStack` เฉพาะ Tool เพื่อเขียนทับค่าเริ่มต้นได้
 
@@ -82,9 +100,9 @@ IronOre = {
 ```text
 ServerStorage
 └── AllItems
-    ├── Wood
-    ├── HealthPotion
-    └── IronOre
+    ├── oak_wood
+    ├── health_potion
+    └── iron_sword
 ```
 
 Tool ที่สามารถถูกทิ้งและเก็บกลับได้ควรมี `Handle` อยู่ภายใน Tool
@@ -94,17 +112,15 @@ Tool ที่สามารถถูกทิ้งและเก็บกล
 ระบบจะอ่านข้อมูลตามลำดับต่อไปนี้:
 
 1. ข้อมูลใน `ToolConfig.Items`
-2. Attribute ของ Tool เช่น `ItemType` และ `IsDroppable`
+2. Attribute ของ Tool เช่น `DisplayName`, `ItemType`, และ `IsDroppable`
 3. Property ของ Tool เช่น `ToolTip` และ `TextureId`
 4. ค่าเริ่มต้นของระบบ หากไม่มีข้อมูลระบุไว้
 
-ดังนั้น Tool เดิมที่ยังใช้ Attribute อยู่จะยังทำงานได้ แต่ Tool ใหม่แนะนำให้กำหนดข้อมูลใน `ToolConfig`
+ข้อมูลที่บันทึกใน ProfileService จะเก็บเฉพาะ `Name` (ID ของ Tool), `Count`, `StackId` และ `Hotbar` ส่วนรายละเอียดแสดงผลจะถูกอ่านใหม่จาก `ToolConfig` ตอนโหลดข้อมูลผู้เล่น
 
-ข้อมูลที่บันทึกใน ProfileService จะเก็บชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะถูกอ่านใหม่จาก `ToolConfig` ตอนโหลดข้อมูลผู้เล่น
+---
 
-`ToolConfig.Items` ใช้ key เป็น ID ของ Tool เช่น `iron_sword` หรือ `oak_wood` ส่วน `DisplayName` ใช้สำหรับแสดงผลเท่านั้น และสามารถเปลี่ยนได้โดยไม่เปลี่ยน ID ที่ใช้ Save/Stack
-
-## Server Services
+## 🖥️ Server Services
 
 Service ฝั่ง Server อยู่ที่ `src/server/Services` และถูกโหลดอัตโนมัติโดย:
 
@@ -112,7 +128,7 @@ Service ฝั่ง Server อยู่ที่ `src/server/Services` แล�
 src/server/ServerLoader.server.luau
 ```
 
-`ServerLoader` จะค้นหา ModuleScript ทุกไฟล์ในโฟลเดอร์ `Services` จากนั้นเรียก `Init()` และ `Start()` ถ้ามีฟังก์ชันดังกล่าว
+`ServerLoader` จะค้นหา `ModuleScript` ทุกไฟล์ในโฟลเดอร์ `Services` จากนั้นเรียก `Init()` และ `Start()` หากมีฟังก์ชันดังกล่าว
 
 ### รายการ Service
 
@@ -120,10 +136,12 @@ src/server/ServerLoader.server.luau
 | --- | --- | --- |
 | DataService | `DataService/DataService.luau` | โหลดและจัดการ ProfileService ของผู้เล่น |
 | InventoryService | `DataService/InventoryService.luau` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม |
-| PlotService | `PlotService/Server.luau` | สร้าง โหลด บันทึก และลบ Plot ของผู้เล่น |
-| NPCService | `NPCService/` | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC แต่ยังไม่มีการทำงานในปัจจุบัน |
+| PlotService | `PlotService/Server.luau` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น |
+| NPCService | `NPCService/` | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC (ยังไม่มีการทำงานในปัจจุบัน) |
 
-## DataService
+---
+
+## 💾 DataService
 
 DataService ใช้ ProfileService และเปิด ProfileStore ชื่อ `PlayerData`
 
@@ -145,66 +163,90 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 }
 ```
 
-ฟังก์ชันที่ Service อื่นใช้:
+ฟังก์ชันที่ Service อื่นเรียกใช้:
 
-- `GetProfile(player)` คืนค่า Profile ปัจจุบัน
-- `WaitForProfile(player)` รอจนกว่า Profile จะโหลดเสร็จ
-- `OnBeforeProfileRelease(callback)` ลงทะเบียนฟังก์ชันก่อนปล่อย Profile
+- `GetProfile(player)` — คืนค่า Profile ปัจจุบันของผู้เล่น
+- `WaitForProfile(player)` — รอจนกว่า Profile จะโหลดเสร็จ (คืนค่า `nil` หากผู้เล่นออกจากเกมก่อน)
+- `OnBeforeProfileRelease(callback)` — ลงทะเบียนฟังก์ชันเพื่อบันทึกข้อมูลก่อนปล่อย Profile
 
-InventoryService และ PlotService ใช้ callback ก่อนปล่อย Profile เพื่อบันทึกข้อมูลให้ทันก่อนผู้เล่นออกจากเกม
+---
 
-## InventoryService
+## 🎒 Inventory System (Server & Client)
 
-InventoryService จัดการเรื่องต่อไปนี้:
+### ฝั่ง Server (`src/server/Services/DataService/InventoryService.luau`)
+- ตรวจจับ Tool ที่เข้า/ออกจาก `Backpack` และ `Character` อัตโนมัติ
+- รวม Tool ที่มีชื่อเดียวกันเป็น Stack (สูงสุด 20 Stacks ต่อผู้เล่น)
+- จัดการ Hotbar 10 ช่อง (`Slot1` - `Slot10`) และตั้งค่าไอเทมเข้า Hotbar อัตโนมัติ (ยกเว้นประเภท `Armor`)
+- รักษาไอเทมในกระเป๋าเมื่อตัวละครตายและเกิดใหม่ (`Respawning`)
+- ทิ้ง Tool ลง `Workspace` และสร้าง `ProximityPrompt` ให้เก็บกลับได้
+- มีระบบ Rate Limiting ป้องกันการยิง Packet รัวจากฝั่ง Client
+- มี API สำหรับเชื่อมต่อกับระบบอื่น:
+  - `HasItem(player, itemName): boolean` — ตรวจสอบว่าผู้เล่นมีไอเทมหรือไม่
+  - `ConsumeItem(player, itemName): boolean` — หักไอเทมออกจากกระเป๋า 1 ชิ้น
+  - `GiveItem(player, itemName): boolean` — สร้างไอเทมจาก `ServerStorage.AllItems` เข้ากระเป๋าผู้เล่น
 
-- ตรวจจับ Tool ใน Backpack และ Character
-- รวม Tool ที่ชื่อเดียวกันเป็น Stack
-- จำกัดจำนวน Stack และจำนวนต่อ Stack
-- จัดการ Hotbar สูงสุด 10 ช่อง
-- Equip และ Unequip Tool
-- ทิ้ง Tool ลง Workspace และเก็บ Tool ที่ตกอยู่ด้วย ProximityPrompt
-- โหลดและบันทึกข้อมูลผ่าน `profile.Data.Items`
-- ส่งข้อมูล Inventory ผ่าน ByteNet
+### ฝั่ง Client (`src/client/StarterPlayerScripts/InventoryClient.luau`)
+- ปิด CoreGui Backpack เดิมของ Roblox และจัดการ State ของกระเป๋าฝั่งผู้เล่น (`Data`, `SelectedStackId`, `IsOpen`, `LastError`)
+- ใช้รูปแบบ Observer (`Subscribe` / `notify`) เพื่อแจ้งเตือน React UI ทุกครั้งที่ข้อมูลอัปเดต
+- รับอินพุตปุ่ม `B` สำหรับเปิด/ปิดกระเป๋า และปุ่มตัวเลข `1`-`0` สำหรับถือไอเทมใน Hotbar
 
-ไฟล์ที่เกี่ยวข้อง:
+### โครงสร้าง React UI (`src/client/StarterPlayerScripts/UI/`)
 
 ```text
-src/shared/Modules/ToolConfig.luau
-src/shared/Modules/Network.luau
-ServerStorage/AllItems
+src/client/StarterPlayerScripts/UI/
+├── App.luau                  -- สร้าง ScreenGui และ Mount React Root
+├── MainFrame.luau            -- หน้าจอหลัก เชื่อมต่อ InventoryClient เข้ากับ UI Components
+├── InventoryFrame.luau       -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
+├── HotbarSlot.luau           -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
+└── Components/
+    ├── TabBar.luau           -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
+    ├── ItemGrid.luau         -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
+    ├── ItemCard.luau         -- การ์ดแสดงไอคอน ชื่อ จำนวน และสีตามประเภทไอเทม
+    ├── DetailPanel.luau      -- แผงแสดงรายละเอียดไอเทม และปุ่ม Equip / Unequip / Drop
+    ├── ErrorToast.luau       -- กล่องแจ้งเตือนข้อผิดพลาด (ปิดตัวเองอัตโนมัติใน 3 วินาที)
+    └── LevelBar.luau         -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
 ```
 
-ข้อมูลที่บันทึกลง ProfileService จะเก็บเฉพาะชื่อ Tool, จำนวน, StackId และ Hotbar ส่วนรายละเอียด Tool จะอ่านจาก ToolConfig ตอนโหลดกลับมา
+นอกจากนี้ยังมีไฟล์ `src/client/StarterPlayerScripts/root.story.luau` สำหรับพรีวิว UI ใน Storybook (เช่น Flipbook / Hoarcekat) ได้ทันทีโดยไม่ต้องรันเกม
 
-## PlotService
+---
 
-PlotService แบ่งหน้าที่เป็นหลาย Module:
+## 🏗️ PlotService (Server & Client)
 
-| ไฟล์ | หน้าที่ |
-| --- | --- |
-| `PlotService/Server.luau` | รับคำสั่งจาก ByteNet และควบคุม lifecycle ของ Plot |
-| `PlotService/PlotManager.luau` | สร้าง ลบ วาง และลบสิ่งของใน Plot |
-| `PlotService/PlotSpawnPool.luau` | จัดสรรจุดเกิด Plot ให้ผู้เล่น |
-| `PlotService/PlotStorage.luau` | โหลดและบันทึกสิ่งของใน Plot ลง ProfileService |
-| `shared/Modules/PlacementValidator.luau` | ตรวจสอบขอบเขตและการชนของสิ่งของ |
+ระบบสร้างและวางสิ่งของในพื้นที่ส่วนตัวของผู้เล่น แบ่งการทำงานดังนี้:
 
-สิ่งที่ต้องมีในเกม:
+| ไฟล์ | ฝั่ง | หน้าที่ |
+| --- | --- | --- |
+| `PlotService/Server.luau` | Server | รับคำสั่งจาก ByteNet (พร้อม Rate Limiting) และจัดการ Lifecycle ของ Plot |
+| `PlotService/PlotManager.luau` | Server | สร้าง/ลบ Plot และตรวจสอบการวาง/ลบสิ่งของ พร้อมเชื่อมกับ `InventoryService` |
+| `PlotService/PlotSpawnPool.luau` | Server | จัดสรรและคืนจุดเกิด Plot (`Workspace.PlotSpawns`) ให้ผู้เล่น |
+| `PlotService/PlotStorage.luau` | Server | โหลดและบันทึกสิ่งของใน Plot ลง `profile.Data.Plot` และแจ้ง `Plot.Ready` ให้ Client |
+| `PlotService/Client.client.luau` | Client | รอรับ Plot จาก Server และผูกปุ่ม `F` เพื่อเปิด/ปิดโหมดวางสิ่งของ |
+| `PlotService/ClientPlacer.luau` | Client | แสดงโมเดล Preview แบบโปร่งแสง, ตรวจสอบขอบเขต/การชนแบบเรียลไทม์, หมุน/สลับสิ่งของ |
+| `shared/Modules/PlacementValidator.luau` | Shared | คำนวณว่าสิ่งของอยู่ในขอบเขตของ Plot (`withinBounds`) และไม่ทับซ้อนสิ่งของอื่น (`noCollisions`) |
+
+### การทำงานร่วมกับระบบ Inventory
+- **การวางสิ่งของ (`PlotManager.place`):** หากชื่อสิ่งของใน `ReplicatedStorage.PlaceableObjects` มี `Tool` ชื่อเดียวกันอยู่ใน `ServerStorage.AllItems` ระบบจะตรวจสอบว่าผู้เล่นมีไอเทมนั้นในกระเป๋าหรือไม่ และหักไอเทมออก 1 ชิ้นเมื่อวางสำเร็จ
+- **การลบสิ่งของ (`PlotManager.delete`):** เมื่อผู้เล่นกด `X` ลบสิ่งของใน Plot หากสิ่งของนั้นมี `Tool` คู่กันใน `ServerStorage.AllItems` ระบบจะคืนไอเทมกลับเข้ากระเป๋าผู้เล่น 1 ชิ้น (หากกระเป๋าเต็มจะไม่อนุญาตให้ลบเพื่อป้องกันไอเทมสูญหาย)
+
+### โครงสร้างที่ต้องมีใน Roblox Studio
 
 ```text
 ServerStorage
-└── Plot                 -- Model ต้องมี PrimaryPart และ Objects
+├── Plot                 -- Model ของพื้นที่ผู้เล่น (ต้องมี PrimaryPart และโฟลเดอร์ Objects)
+└── AllItems             -- Folder เก็บ Tool ทั้งหมดของเกม
 
 Workspace
-├── Plots                -- Folder สำหรับ Plot ที่ถูกสร้าง
-└── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิด
+├── Plots                -- Folder เปล่าสำหรับเก็บ Plot ของผู้เล่นที่ถูกสร้างขึ้น
+└── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิดของแต่ละ Plot
 
 ReplicatedStorage
-└── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางได้
+└── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่สามารถวางใน Plot ได้
 ```
 
-ข้อมูล Plot จะถูกบันทึกใน `profile.Data.Plot` เป็นชื่อ Model และ CFrame ที่สัมพันธ์กับ Plot ของผู้เล่น
+---
 
-## NPCService
+## 🤖 NPCService
 
 ปัจจุบันมีไฟล์เตรียมไว้ดังนี้:
 
@@ -213,11 +255,13 @@ src/server/Services/NPCService/AnimController.luau
 src/server/Services/NPCService/EnemyController.luau
 ```
 
-ทั้งสองไฟล์ยังไม่มีโค้ดการทำงาน จึงยังไม่มีระบบ Animation หรือ Enemy ที่ถูกเปิดใช้งาน หากเริ่มเพิ่มโค้ด Service ควรคืนค่าเป็นตาราง และใช้ `Init()` หรือ `Start()` ตามรูปแบบของ ServerLoader
+ทั้งสองไฟล์ยังเป็นโครงเตรียมไว้สำหรับพัฒนาระบบ Animation และ Enemy ในอนาคต
 
-## Network
+---
 
-ระบบ Network ทั้งหมดใช้ ByteNet ผ่านไฟล์:
+## 🌐 Network (ByteNet)
+
+ระบบสื่อสารระหว่าง Server และ Client ทั้งหมดใช้ **ByteNet** (Binary Serialization) ผ่านไฟล์:
 
 ```text
 src/shared/Modules/Network.luau
@@ -225,7 +269,14 @@ src/shared/Modules/Network.luau
 
 Namespace ที่ใช้งานอยู่:
 
-- `InventoryNetwork` สำหรับข้อมูลและคำสั่ง Inventory
-- `PlotNetwork` สำหรับการโหลด Plot, วาง และลบสิ่งของ
-
-ไม่ต้องสร้าง RemoteEvent หรือ RemoteFunction เองใน `ReplicatedStorage`
+- **`InventoryNetwork`**
+  - `Request` — Client ขอข้อมูลกระเป๋าเริ่มต้น
+  - `Update` — Server ส่งข้อมูลกระเป๋า (`ClientInventory` Struct) ให้ Client
+  - `EquipToHotbar` / `UnequipFromHotbar` — สวมใส่หรือถอดไอเทมออกจากช่อง Hotbar
+  - `HoldItem` / `UnholdItems` — ถือหรือเก็บ Tool ในมือตัวละคร
+  - `DropItem` — ทิ้งไอเทมลงพื้น
+  - `Error` — ส่งข้อความแจ้งเตือนข้อผิดพลาดไปแสดงบน `ErrorToast`
+- **`PlotNetwork`**
+  - `Request` / `Ready` — ขอและส่ง Instance ของ Plot ประจำตัวผู้เล่น
+  - `TryPlace` — ส่งชื่อสิ่งของและ `CFrame` เพื่อขอวางใน Plot
+  - `TryDelete` — ส่ง Instance เป้าหมายเพื่อขอลบออกจาก Plot

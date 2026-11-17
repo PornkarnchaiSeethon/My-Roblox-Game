@@ -37,4 +37,4 @@ local function setPlacementActive(_, state: Enum.UserInputState)
 	end
 end
 
-ContextActionService:BindAction("ActivatePlacement", setPlacementActive, false, Enum.KeyCode.B)
+ContextActionService:BindAction("ActivatePlacement", setPlacementActive, false, Enum.KeyCode.F)

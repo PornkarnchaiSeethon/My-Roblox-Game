@@ -1,7 +1,9 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.Parent.DataService.DataService)
 local PlotManager = require(script.Parent.PlotManager)
+local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 
 local PlotStorage = {}
 local playersRemaining = Instance.new("NumberValue")
@@ -23,7 +25,7 @@ function PlotStorage.load(player: Player)
 	playersRemaining.Value += 1
 
 	local profile = DataService.WaitForProfile(player)
-	if not profile then
+	if not profile or not player:IsDescendantOf(Players) then
 		playersRemaining.Value -= 1
 		return
 	end
@@ -74,6 +76,10 @@ function PlotStorage.load(player: Player)
 				newObject.Parent = objectsFolder
 			end
 		end
+	end
+
+	if player:IsDescendantOf(Players) then
+		Network.Plot.Ready.sendTo({ plot = plot }, player)
 	end
 end
 

@@ -2,10 +2,18 @@ local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlotSpawnPool = require(script.Parent.PlotSpawnPool)
+local InventoryService = require(script.Parent.Parent.DataService.InventoryService)
 local PlacementValidator = require(ReplicatedStorage.Shared.Modules:WaitForChild("PlacementValidator"))
+local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 
 local PlotManager = {}
 local plots: { [number]: Model } = {}
+
+local function requiresInventoryItem(itemName: string): boolean
+	local allItems = ServerStorage:FindFirstChild("AllItems")
+	local template = allItems and allItems:FindFirstChild(itemName)
+	return template ~= nil and template:IsA("Tool")
+end
 
 -- สร้าง Plot ประจำตัวผู้เล่น
 function PlotManager.spawnPlot(player: Player): Model
@@ -71,6 +79,13 @@ function PlotManager.place(player: Player, name: string, targetCF: CFrame): bool
 	if not PlacementValidator.noCollisions(plot, objectSize, targetCF) then
 		return false
 	end
+
+	if requiresInventoryItem(name) then
+		if not InventoryService.HasItem(player, name) or not InventoryService.ConsumeItem(player, name) then
+			Network.Inventory.Error.sendTo("You don't have this item!", player)
+			return false
+		end
+	end
 	
 	local newObject = object:Clone()
 	newObject:PivotTo(targetCF)
@@ -91,6 +106,13 @@ function PlotManager.delete(player: Player, targetInstance: Instance): boolean
 		else targetInstance:FindFirstAncestorWhichIsA("Model")
 		
 	if actualObject and actualObject.Parent == objectsFolder then
+		if requiresInventoryItem(actualObject.Name) then
+			if not InventoryService.GiveItem(player, actualObject.Name) then
+				Network.Inventory.Error.sendTo("Inventory is full!", player)
+				return false
+			end
+		end
+
 		actualObject:Destroy()
 		return true
 	end

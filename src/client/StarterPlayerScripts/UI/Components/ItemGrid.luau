@@ -24,15 +24,16 @@ local function isVisible(stackData: Types.ClientStackData, selectedTab: string):
 end
 
 local function ItemGrid(props: Props)
-	local children = {
+	local scrollChildren = {
 		Padding = e("UIPadding", {
-			PaddingTop = UDim.new(0, 8),
-			PaddingLeft = UDim.new(0, 8),
-			PaddingRight = UDim.new(0, 8),
+			PaddingTop = UDim.new(0, 10),
+			PaddingBottom = UDim.new(0, 10),
+			PaddingLeft = UDim.new(0, 10),
+			PaddingRight = UDim.new(0, 10),
 		}),
 		Grid = e("UIGridLayout", {
-			CellSize = UDim2.fromOffset(150, 72),
-			CellPadding = UDim2.fromOffset(6, 6),
+			CellSize = UDim2.fromOffset(152, 74),
+			CellPadding = UDim2.fromOffset(8, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	}
@@ -43,7 +44,7 @@ local function ItemGrid(props: Props)
 			if isVisible(stackData, props.selectedTab) then
 				visibleCount += 1
 				local isSelected = props.selectedStackId == stackData.StackId
-				children["Stack" .. stackData.StackId] = e(ItemCard, {
+				scrollChildren["Stack" .. stackData.StackId] = e(ItemCard, {
 					stackData = stackData,
 					isSelected = isSelected,
 					onSelect = function()
@@ -54,25 +55,35 @@ local function ItemGrid(props: Props)
 		end
 	end
 
-	if visibleCount == 0 then
-		children.Empty = e("TextLabel", {
-			Size = UDim2.new(1, -16, 0, 50),
-			BackgroundTransparency = 1,
-			Text = "No items",
-			TextColor3 = Color3.fromRGB(220, 220, 220),
-			TextSize = 20,
-		})
-	end
-
-	return e("ScrollingFrame", {
+	return e("Frame", {
 		Position = props.position or UDim2.new(),
 		Size = props.size or UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ScrollBarThickness = 2,
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-	}, children)
+		BackgroundColor3 = Color3.fromRGB(17, 19, 26),
+		BackgroundTransparency = 0.15,
+	}, {
+		Corner = e("UICorner", { CornerRadius = UDim.new(0, 10) }),
+		Stroke = e("UIStroke", { Thickness = 1, Color = Color3.fromRGB(45, 50, 66) }),
+
+		Scroll = (visibleCount > 0) and e("ScrollingFrame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ScrollBarThickness = 4,
+			ScrollBarImageColor3 = Color3.fromRGB(95, 105, 135),
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+		}, scrollChildren),
+
+		Empty = (visibleCount == 0) and e("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "No items in this category",
+			Font = Enum.Font.GothamMedium,
+			TextColor3 = Color3.fromRGB(130, 140, 165),
+			TextSize = 15,
+		}),
+	})
 end
 
 return ItemGrid

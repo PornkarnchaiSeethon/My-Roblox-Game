@@ -52,6 +52,7 @@ function ClientPlacer.new(plot: Model)
 		objectIndex = 1,
 		preview = nil :: Model?,
 		selectionBox = nil :: SelectionBox?,
+		objectSize = Vector3.zero,
 		rotation = 0,
 		gridSize = 0,
 	}, ClientPlacer)
@@ -65,6 +66,9 @@ function ClientPlacer:preparePreviewModel(model: Model)
 	if self.preview then
 		self.preview:Destroy()
 	end
+
+	local _, objectSize = model:GetBoundingBox()
+	self.objectSize = objectSize
 
 	local preview = model:Clone()
 	for _, part in preview:GetDescendants() do
@@ -100,7 +104,7 @@ function ClientPlacer:renderPreview()
 	if not cast then return end
 
 	local snappedPos = snapToGrid(cast.Position, self.gridSize)
-	local _, size = self.preview:GetBoundingBox()
+	local size = self.objectSize
 	local finalPos = snappedPos + Vector3.new(0, size.Y / 2, 0)
 	local targetCF = CFrame.new(finalPos) * CFrame.Angles(0, self.rotation, 0)
 	self.preview:PivotTo(targetCF)
