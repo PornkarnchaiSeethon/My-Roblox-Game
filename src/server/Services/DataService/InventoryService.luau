@@ -3,13 +3,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Modules = ReplicatedStorage:WaitForChild("Packages")
+local Knit = require(Modules:WaitForChild("knit"))
 local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 local ToolConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("ToolConfig"))
 local Janitor = require(Modules:WaitForChild("janitor"))
 local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 local DataService = require(script.Parent.DataService)
 
-local InventoryServer = {}
+local InventoryServer = Knit.CreateService({
+	Name = "InventoryService",
+	Client = {},
+})
 InventoryServer.AllInventories = {} :: {[Player]: Types.Inventory}
 InventoryServer.Janitors = {}
 InventoryServer.CharacterJanitors = {}
@@ -591,11 +595,21 @@ function InventoryServer.OnPlayerRemoving(player: Player)
 	end
 end
 
-function InventoryServer.Start()
+function InventoryServer.Client:GetInventory(player: Player)
+	local inv = InventoryServer.AllInventories[player]
+	if not inv then
+		return nil
+	end
+	return InventoryServer.SerializeForClient(inv)
+end
+
+function InventoryServer:KnitInit()
 	DataService.OnBeforeProfileRelease(function(player, profile)
 		InventoryServer.SaveData(player, profile)
 	end)
+end
 
+function InventoryServer:KnitStart()
 	for _, player in Players:GetPlayers() do
 		task.spawn(InventoryServer.OnPlayerAdded, player)
 	end
@@ -663,5 +677,7 @@ function InventoryServer.Start()
 		InventoryServer.DropItem(player, data.stackId)
 	end)
 end
+
+InventoryServer.Start = InventoryServer.KnitStart
 
 return InventoryServer

@@ -120,24 +120,24 @@ Tool ที่สามารถถูกทิ้งและเก็บกล
 
 ---
 
-## 🖥️ Server Services
+## 🖥️ Server Services (Knit Framework)
 
-Service ฝั่ง Server อยู่ที่ `src/server/Services` และถูกโหลดอัตโนมัติโดย:
+Service ฝั่ง Server อยู่ที่ `src/server/Services` และถูกโหลดผ่าน **Knit** โดย:
 
 ```text
 src/server/ServerLoader.server.luau
 ```
 
-`ServerLoader` จะค้นหา `ModuleScript` ทุกไฟล์ในโฟลเดอร์ `Services` จากนั้นเรียก `Init()` และ `Start()` หากมีฟังก์ชันดังกล่าว
+`ServerLoader` จะค้นหา `ModuleScript` ทุกไฟล์ในโฟลเดอร์ `Services` เพื่อลงทะเบียน Knit Service (`Knit.CreateService`) จากนั้นเรียก `Knit.Start()` เพื่อรัน `KnitInit()` และ `KnitStart()` ตามลำดับ (และยังรองรับ Module แบบเดิมที่มี `Init()` / `Start()`)
 
 ### รายการ Service
 
-| Service | ไฟล์หลัก | หน้าที่ |
-| --- | --- | --- |
-| DataService | `DataService/DataService.luau` | โหลดและจัดการ ProfileService ของผู้เล่น |
-| InventoryService | `DataService/InventoryService.luau` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม |
-| PlotService | `PlotService/Server.luau` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น |
-| NPCService | `NPCService/` | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC (ยังไม่มีการทำงานในปัจจุบัน) |
+| Service | ไฟล์หลัก | ชื่อ Knit Service | หน้าที่ |
+| --- | --- | --- | --- |
+| DataService | `DataService/DataService.luau` | `"DataService"` | โหลดและจัดการ ProfileService ของผู้เล่น (`Client:GetData`) |
+| InventoryService | `DataService/InventoryService.luau` | `"InventoryService"` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม (`Client:GetInventory`) |
+| PlotService | `PlotService/Server.luau` | `"PlotService"` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น (`Client:GetPlot`) |
+| NPCService | `NPCService/` | — | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC (ยังไม่มีการทำงานในปัจจุบัน) |
 
 ---
 
@@ -186,6 +186,7 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
   - `GiveItem(player, itemName): boolean` — สร้างไอเทมจาก `ServerStorage.AllItems` เข้ากระเป๋าผู้เล่น
 
 ### ฝั่ง Client (`src/client/StarterPlayerScripts/InventoryClient.luau`)
+- สร้างเป็น Knit Controller ชื่อ `"InventoryClient"` (`Knit.CreateController`) และเริ่มต้นทำงานผ่าน `Knit.Start()` ใน `main.client.luau`
 - ปิด CoreGui Backpack เดิมของ Roblox และจัดการ State ของกระเป๋าฝั่งผู้เล่น (`Data`, `SelectedStackId`, `IsOpen`, `LastError`)
 - ใช้รูปแบบ Observer (`Subscribe` / `notify`) เพื่อแจ้งเตือน React UI ทุกครั้งที่ข้อมูลอัปเดต
 - รับอินพุตปุ่ม `B` สำหรับเปิด/ปิดกระเป๋า และปุ่มตัวเลข `1`-`0` สำหรับถือไอเทมใน Hotbar
@@ -221,7 +222,8 @@ src/client/StarterPlayerScripts/UI/
 | `PlotService/PlotManager.luau` | Server | สร้าง/ลบ Plot และตรวจสอบการวาง/ลบสิ่งของ พร้อมเชื่อมกับ `InventoryService` |
 | `PlotService/PlotSpawnPool.luau` | Server | จัดสรรและคืนจุดเกิด Plot (`Workspace.PlotSpawns`) ให้ผู้เล่น |
 | `PlotService/PlotStorage.luau` | Server | โหลดและบันทึกสิ่งของใน Plot ลง `profile.Data.Plot` และแจ้ง `Plot.Ready` ให้ Client |
-| `PlotService/Client.client.luau` | Client | รอรับ Plot จาก Server และผูกปุ่ม `F` เพื่อเปิด/ปิดโหมดวางสิ่งของ |
+| `PlotService/PlotController.luau` | Client | Knit Controller (`"PlotController"`) รอรับ Plot จาก Server และผูกปุ่ม `F` เพื่อเปิด/ปิดโหมดวางสิ่งของ |
+| `PlotService/Client.client.luau` | Client | รอ `Knit.OnStart()` และเชื่อมต่อกับ `PlotController` |
 | `PlotService/ClientPlacer.luau` | Client | แสดงโมเดล Preview แบบโปร่งแสง, ตรวจสอบขอบเขต/การชนแบบเรียลไทม์, หมุน/สลับสิ่งของ |
 | `shared/Modules/PlacementValidator.luau` | Shared | คำนวณว่าสิ่งของอยู่ในขอบเขตของ Plot (`withinBounds`) และไม่ทับซ้อนสิ่งของอื่น (`noCollisions`) |
 

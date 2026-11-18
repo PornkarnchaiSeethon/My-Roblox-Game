@@ -2,10 +2,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
+local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
 local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 
-local InventoryClient = {}
+local InventoryClient = Knit.CreateController({
+	Name = "InventoryClient",
+})
 InventoryClient.Data = nil :: Types.ClientInventory?
 InventoryClient.SelectedStackId = nil :: number?
 InventoryClient.IsOpen = true
@@ -132,6 +135,12 @@ function InventoryClient.Start()
 		end
 	end)
 	notify()
+end
+
+function InventoryClient:KnitInit() end
+
+function InventoryClient:KnitStart()
+	InventoryClient.Start()
 end
 
 return InventoryClient

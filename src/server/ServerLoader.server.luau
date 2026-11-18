@@ -1,10 +1,12 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local Service = ServerScriptService.Services
+local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
+local ServicesFolder = ServerScriptService:WaitForChild("Services")
 
-local loaded = {}
+local legacyModules = {}
 
-for _, moduleScript in Service:GetDescendants() do
+for _, moduleScript in ServicesFolder:GetDescendants() do
 	if not moduleScript:IsA("ModuleScript") then
 		continue
 	end
@@ -19,24 +21,35 @@ for _, moduleScript in Service:GetDescendants() do
 		continue
 	end
 
-	if type(result.Init) == "function" then
-		local initOk, err = pcall(result.Init)
-		if not initOk then
-			warn(`[Bootstrap] Init failed: {moduleScript.Name}\n{err}`)
-			continue
+	-- รองรับ Module แบบเดิมที่ไม่ได้สร้างผ่าน Knit.CreateService แต่มี Init/Start
+	local isKnitService = type(result.Name) == "string" and result.KnitComm ~= nil
+	if not isKnitService and (type(result.Init) == "function" or type(result.Start) == "function") then
+		table.insert(legacyModules, { name = moduleScript.Name, module = result })
+	end
+end
+
+for _, entry in legacyModules do
+	if type(entry.module.Init) == "function" then
+		local ok, err = pcall(entry.module.Init)
+		if not ok then
+			warn(`[Bootstrap] Legacy Init failed: {entry.name}\n{err}`)
 		end
 	end
-
-	table.insert(loaded, { name = moduleScript.Name, module = result })
 end
 
-for _, entry in loaded do
-	if type(entry.module.Start) == "function" then
-		task.spawn(function()
-			local ok, err = pcall(entry.module.Start)
-			if not ok then
-				warn(`[Bootstrap] Start failed: {entry.name}\n{err}`)
+Knit.Start()
+	:andThen(function()
+		for _, entry in legacyModules do
+			if type(entry.module.Start) == "function" then
+				task.spawn(function()
+					local ok, err = pcall(entry.module.Start)
+					if not ok then
+						warn(`[Bootstrap] Legacy Start failed: {entry.name}\n{err}`)
+					end
+				end)
 			end
-		end)
-	end
-end
+		end
+	end)
+	:catch(function(err)
+		warn(`[Bootstrap] Knitserver Start failed:\n{err}`)
+	end)

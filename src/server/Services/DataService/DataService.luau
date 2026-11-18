@@ -1,6 +1,8 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
 local ProfileService = require(ServerScriptService.ServerPackages.ProfileService)
 
 local ProfileTemplate = {
@@ -23,31 +25,48 @@ local Profiles = {}
 local LoadingPlayers = {}
 local BeforeProfileRelease = {}
 
-local module = {}
+local DataService = Knit.CreateService({
+	Name = "DataService",
+	Client = {},
+})
 
-function module.GetProfile(player)
+function DataService.GetProfile(player: Player)
 	return Profiles[player]
 end
 
-function module.WaitForProfile(player)
+function DataService.WaitForProfile(player: Player)
 	while player.Parent and not Profiles[player] do
 		task.wait()
 	end
 	return Profiles[player]
 end
 
-function module.OnBeforeProfileRelease(callback)
+function DataService.OnBeforeProfileRelease(callback: (Player, any) -> ())
 	table.insert(BeforeProfileRelease, callback)
 end
 
-local function GiveCash(profile, amount)
+function DataService.Client:GetData(player: Player)
+	local profile = Profiles[player]
+	if not profile then
+		return nil
+	end
+
+	return {
+		CurrentLevel = profile.Data.CurrentLevel,
+		CurrentExp = profile.Data.CurrentExp,
+		ExpForNextLevel = profile.Data.ExpForNextLevel,
+		Cash = profile.Data.Cash,
+	}
+end
+
+local function GiveCash(profile, amount: number)
 	if profile.Data.Cash == nil then
 		profile.Data.Cash = 0
 	end
 	profile.Data.Cash = profile.Data.Cash + amount
 end
 
-local function DoSomethingWithALoadedProfile(player, profile)
+local function DoSomethingWithALoadedProfile(player: Player, profile)
 	profile.Data.LogInTimes = profile.Data.LogInTimes + 1
 	print(
 		player.Name
@@ -60,23 +79,21 @@ local function DoSomethingWithALoadedProfile(player, profile)
 	print(player.Name .. " owns " .. tostring(profile.Data.Cash) .. " now!")
 end
 
-do
-	local function AddExp(player, exp)
-		local profile = Profiles[player]
-		if not profile then
-			warn("can't find player profile")
-			return
-		end
-		profile.Data.CurrentExp += exp
-		while profile.Data.CurrentExp >= profile.Data.ExpForNextLevel do
-			profile.Data.CurrentExp -= profile.Data.ExpForNextLevel
-			profile.Data.CurrentLevel += 1
-			profile.Data.ExpForNextLevel = profile.Data.CurrentLevel * 100
-		end
+function DataService.AddExp(player: Player, exp: number)
+	local profile = Profiles[player]
+	if not profile then
+		warn("can't find player profile")
+		return
+	end
+	profile.Data.CurrentExp += exp
+	while profile.Data.CurrentExp >= profile.Data.ExpForNextLevel do
+		profile.Data.CurrentExp -= profile.Data.ExpForNextLevel
+		profile.Data.CurrentLevel += 1
+		profile.Data.ExpForNextLevel = profile.Data.CurrentLevel * 100
 	end
 end
 
-local function PlayerAdd(player)
+local function PlayerAdd(player: Player)
 	if Profiles[player] or LoadingPlayers[player] then
 		return
 	end
@@ -103,7 +120,9 @@ local function PlayerAdd(player)
 	end
 end
 
-function module.Start()
+function DataService:KnitInit() end
+
+function DataService:KnitStart()
 	for _, player in Players:GetPlayers() do
 		task.spawn(PlayerAdd, player)
 	end
@@ -120,4 +139,6 @@ function module.Start()
 	end)
 end
 
-return module
+DataService.Start = DataService.KnitStart
+
+return DataService

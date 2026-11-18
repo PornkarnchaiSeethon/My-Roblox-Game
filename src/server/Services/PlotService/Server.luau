@@ -1,12 +1,16 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
 local DataService = require(script.Parent.Parent.DataService.DataService)
 local PlotManager = require(script.Parent.PlotManager)
 local PlotStorage = require(script.Parent.PlotStorage)
 local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 
-local PlotService = {}
+local PlotService = Knit.CreateService({
+	Name = "PlotService",
+	Client = {},
+})
 local actionCooldowns: { [Player]: { [string]: number } } = {}
 
 local function allowAction(player: Player, actionName: string, cooldown: number): boolean
@@ -33,11 +37,17 @@ function PlotService.sendPlot(player: Player)
 	end
 end
 
-function PlotService.Start()
+function PlotService.Client:GetPlot(player: Player)
+	return PlotManager.getPlot(player)
+end
+
+function PlotService:KnitInit()
 	DataService.OnBeforeProfileRelease(function(player, profile)
 		PlotStorage.save(player, profile)
 	end)
+end
 
+function PlotService:KnitStart()
 	Network.Plot.Request.listen(function(_, player)
 		if not allowAction(player, "Request", 0.25) then return end
 		PlotService.sendPlot(player)
@@ -66,5 +76,7 @@ function PlotService.Start()
 		PlotStorage.waitForSave()
 	end)
 end
+
+PlotService.Start = PlotService.KnitStart
 
 return PlotService
