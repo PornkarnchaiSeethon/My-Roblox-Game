@@ -19,15 +19,62 @@ ToolConfig.MaxStackByType = {
 
 -- Add tool-specific data here. The key must match the Tool.Name.
 ToolConfig.Items = {
-	-- Example:
-	-- Wood = {
-	-- 	DisplayName = "Wood",
-	-- 	ItemType = "Resource",
-	-- 	MaxStack = 10,
-	-- 	Description = "Basic building material",
-	-- 	Image = "rbxassetid://0000000000",
-	-- 	IsDroppable = true,
-	-- },
+	berry_feed = {
+		DisplayName = "Berry Feed",
+		ItemType = "Consumable",
+		MaxStack = 32,
+		Description = "อาหารผลไม้สำหรับสัตว์เลี้ยงในฟาร์ม เพิ่มความอิ่มและค่าเติบโต",
+		Image = "rbxassetid://1010101001",
+		IsDroppable = true,
+	},
+	golden_apple = {
+		DisplayName = "Golden Apple",
+		ItemType = "Consumable",
+		MaxStack = 16,
+		Description = "แอปเปิ้ลทองคำชั้นเลิศ เพิ่มความอิ่มและค่าเติบโตจำนวนมาก",
+		Image = "rbxassetid://1010101007",
+		IsDroppable = true,
+	},
+	evo_crystal = {
+		DisplayName = "Evolution Crystal",
+		ItemType = "Special",
+		MaxStack = 10,
+		Description = "คริสตัลกระตุ้นการวิวัฒนาการเมื่อสัตว์เลี้ยงโตเต็มวัย",
+		Image = "rbxassetid://1010101002",
+		IsDroppable = false,
+	},
+	forest_egg = {
+		DisplayName = "Forest Pet Egg",
+		ItemType = "Special",
+		MaxStack = 5,
+		Description = "ไข่สัตว์เลี้ยงป่า นำไปฟักที่เครื่องฟักไข่ใน Plot",
+		Image = "rbxassetid://1010101003",
+		IsDroppable = false,
+	},
+	mystic_forest_egg = {
+		DisplayName = "Mystic Forest Egg",
+		ItemType = "Special",
+		MaxStack = 5,
+		Description = "ไข่สายพันธุ์หายากจากการผสมพันธุ์ในฟาร์ม",
+		Image = "rbxassetid://1010101004",
+		IsDroppable = false,
+	},
+	pet_incubator = {
+		DisplayName = "Egg Incubator",
+		ItemType = "Special",
+		MaxStack = 3,
+		Description = "วางใน Plot เพื่อใช้ฟักไข่สัตว์เลี้ยง",
+		Image = "rbxassetid://1010101005",
+		IsDroppable = false,
+	},
+	breeding_pen = {
+		DisplayName = "Breeding Pen",
+		ItemType = "Special",
+		MaxStack = 2,
+		Description = "วางใน Plot เพื่อผสมพันธุ์สัตว์เลี้ยงโตเต็มวัย 2 ตัว",
+		Image = "rbxassetid://1010101006",
+		IsDroppable = false,
+	},
 }
 
 local function getToolName(toolOrName: Tool | string): string

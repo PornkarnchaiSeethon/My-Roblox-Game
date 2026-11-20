@@ -37,6 +37,18 @@ function PlotService.sendPlot(player: Player)
 	end
 end
 
+function PlotService:GetPlayerPlotModel(player: Player): Model?
+	return PlotManager.getPlot(player)
+end
+
+function PlotService:RegisterDeleteValidator(validator: (Player, Model) -> (boolean, string?))
+	PlotManager.registerDeleteValidator(validator)
+end
+
+function PlotService:OnPlotLoaded(callback: (Player, Model) -> ())
+	PlotStorage.onPlotLoaded(callback)
+end
+
 function PlotService.Client:GetPlot(player: Player)
 	return PlotManager.getPlot(player)
 end

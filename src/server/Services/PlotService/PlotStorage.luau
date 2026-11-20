@@ -8,11 +8,17 @@ local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network")
 local PlotStorage = {}
 local playersRemaining = Instance.new("NumberValue")
 local loadedPlayers: { [number]: boolean } = {}
+local plotLoadedCallbacks: { (Player, Model) -> () } = {}
 
 type ObjectInfo = {
 	name: string,
 	cf: { number },
+	objectId: string?,
 }
+
+function PlotStorage.onPlotLoaded(callback: (Player, Model) -> ())
+	table.insert(plotLoadedCallbacks, callback)
+end
 
 local function finishPlayer(player: Player)
 	if loadedPlayers[player.UserId] then
@@ -74,12 +80,16 @@ function PlotStorage.load(player: Player)
 				local newObject = template:Clone()
 				newObject:PivotTo(plot:GetPivot():ToWorldSpace(relativeCF))
 				newObject.Parent = objectsFolder
+				PlotManager.setupObject(player, newObject, if type(info.objectId) == "string" then info.objectId else nil)
 			end
 		end
 	end
 
 	if player:IsDescendantOf(Players) then
 		Network.Plot.Ready.sendTo({ plot = plot }, player)
+		for _, callback in plotLoadedCallbacks do
+			task.spawn(callback, player, plot)
+		end
 	end
 end
 
@@ -102,9 +112,11 @@ function PlotStorage.save(player: Player, profileOverride)
 		for _, object in objectsFolder:GetChildren() do
 			if object:IsA("Model") then
 				local relativeCF = plot:GetPivot():ToObjectSpace(object:GetPivot())
+				local objectId = object:GetAttribute("ObjectId")
 				table.insert(data, {
 					name = object.Name,
 					cf = { relativeCF:GetComponents() },
+					objectId = if type(objectId) == "string" then objectId else nil,
 				})
 			end
 		end

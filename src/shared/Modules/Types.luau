@@ -48,4 +48,44 @@ export type ClientInventory = {
 	Stacks: { ClientStackData },
 }
 
+export type PetInstanceData = {
+	UID: string,
+	SpeciesId: string,
+	Nickname: string,
+	Stage: string,
+	Level: number,
+	GrowthExp: number,
+	Hunger: number,
+	PotentialBonus: number,
+	State: string,
+	LastFedAt: number?,
+	BreedCooldownUntil: number,
+}
+
+export type IncubatorClientData = {
+	ObjectId: string,
+	EggItemId: string,
+	StartedAt: number,
+	HatchAt: number,
+}
+
+export type BreedingPenClientData = {
+	ObjectId: string,
+	ParentA_UID: string,
+	ParentB_UID: string,
+	StartedAt: number,
+	FinishAt: number,
+	HasReadyEgg: boolean,
+}
+
+export type PetModalInfo = {
+	Type: "Incubator" | "Breeding",
+	ObjectId: string,
+}
+
+export type PetToastInfo = {
+	IsError: boolean,
+	Message: string,
+}
+
 return Types

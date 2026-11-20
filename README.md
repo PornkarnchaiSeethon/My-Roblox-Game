@@ -23,6 +23,7 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 | ปุ่ม | ระบบ | การทำงาน |
 | :---: | --- | --- |
 | `B` | Inventory | เปิด / ปิดหน้าต่างกระเป๋า (หรือกดปุ่ม `Bag [B]` บนหน้าจอ) |
+| `P` | Pet System | เปิด / ปิดหน้าต่าง Pet Barn (หรือกดปุ่ม `Pets [P]` บนหน้าจอ) |
 | `1` - `9`, `0` | Hotbar | ถือ / เก็บไอเทมในช่อง Hotbar ที่ 1 - 10 |
 | `F` | Plot Placement | เปิด / ปิดโหมดวางสิ่งของใน Plot ของผู้เล่น |
 | `Q` / `E` | Plot Placement | เปลี่ยนสิ่งของที่จะวาง (ก่อนหน้า / ถัดไป) |
@@ -137,7 +138,8 @@ src/server/ServerLoader.server.luau
 | DataService | `DataService/DataService.luau` | `"DataService"` | โหลดและจัดการ ProfileService ของผู้เล่น (`Client:GetData`) |
 | InventoryService | `DataService/InventoryService.luau` | `"InventoryService"` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม (`Client:GetInventory`) |
 | PlotService | `PlotService/Server.luau` | `"PlotService"` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น (`Client:GetPlot`) |
-| NPCService | `NPCService/` | — | โฟลเดอร์เตรียมไว้สำหรับระบบ NPC (ยังไม่มีการทำงานในปัจจุบัน) |
+| PetService | `PetService/Server.luau` | `"PetService"` | จัดการสัตว์เลี้ยงใน Plot, ให้อาหาร/วิวัฒนาการ, ฟักไข่/ผสมพันธุ์ และผู้ช่วยต่อสู้ (`Client:GetPetsState`) |
+| NPCService | `NPCService/` | — | `AnimController` สำหรับเล่นแอนิเมชัน Rig และ `EnemyController` สำหรับค้นหาเป้าหมายและรับดาเมจจากสัตว์เลี้ยง |
 
 ---
 
@@ -159,6 +161,13 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 		Stacks = {},
 	},
 	Plot = {},
+	Pets = {
+		MaxPetCapacity = 20,
+		MaxEquippedCombat = 3,
+		Instances = {},
+		Incubators = {},
+		BreedingPens = {},
+	},
 	LogInTimes = 0,
 }
 ```
@@ -195,17 +204,20 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 
 ```text
 src/client/StarterPlayerScripts/UI/
-├── App.luau                  -- สร้าง ScreenGui และ Mount React Root
-├── MainFrame.luau            -- หน้าจอหลัก เชื่อมต่อ InventoryClient เข้ากับ UI Components
-├── InventoryFrame.luau       -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
-├── HotbarSlot.luau           -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
+├── App.luau                      -- สร้าง ScreenGui และ Mount React Root
+├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient และ PetController เข้ากับ UI
+├── InventoryFrame.luau           -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
+├── HotbarSlot.luau               -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
+├── PetBarnFrame.luau             -- หน้าต่างจัดการสัตว์เลี้ยง (ให้อาหาร, วิวัฒนาการ, จัดทีมต่อสู้)
+├── IncubatorBreedingModal.luau   -- หน้าต่างเครื่องฟักไข่และคอกผสมพันธุ์พร้อมนับเวลาถอยหลัง
 └── Components/
-    ├── TabBar.luau           -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
-    ├── ItemGrid.luau         -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
-    ├── ItemCard.luau         -- การ์ดแสดงไอคอน ชื่อ จำนวน และสีตามประเภทไอเทม
-    ├── DetailPanel.luau      -- แผงแสดงรายละเอียดไอเทม และปุ่ม Equip / Unequip / Drop
-    ├── ErrorToast.luau       -- กล่องแจ้งเตือนข้อผิดพลาด (ปิดตัวเองอัตโนมัติใน 3 วินาที)
-    └── LevelBar.luau         -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
+    ├── TabBar.luau               -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
+    ├── ItemGrid.luau             -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
+    ├── ItemCard.luau             -- การ์ดแสดงไอคอน ชื่อ จำนวน และสีตามประเภทไอเทม
+    ├── DetailPanel.luau          -- แผงแสดงรายละเอียดไอเทม และปุ่ม Equip / Unequip / Drop
+    ├── PetCard.luau              -- การ์ดแสดงสัตว์เลี้ยง (ระดับความหายาก, Stage, เลเวล, หลอดอาหาร)
+    ├── ErrorToast.luau           -- กล่องแจ้งเตือนสถานะ (แดง/เขียว ปิดตัวเองอัตโนมัติใน 3 วินาที)
+    └── LevelBar.luau             -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
 ```
 
 นอกจากนี้ยังมีไฟล์ `src/client/StarterPlayerScripts/root.story.luau` สำหรับพรีวิว UI ใน Storybook (เช่น Flipbook / Hoarcekat) ได้ทันทีโดยไม่ต้องรันเกม
@@ -235,29 +247,49 @@ src/client/StarterPlayerScripts/UI/
 
 ```text
 ServerStorage
-├── Plot                 -- Model ของพื้นที่ผู้เล่น (ต้องมี PrimaryPart และโฟลเดอร์ Objects)
-└── AllItems             -- Folder เก็บ Tool ทั้งหมดของเกม
+├── Plot                 -- Model ของพื้นที่ผู้เล่น (ต้องมี PrimaryPart, โฟลเดอร์ Objects และ Pets)
+└── AllItems             -- Folder เก็บ Tool ทั้งหมด (รวม berry_feed, golden_apple, evo_crystal, forest_egg, mystic_forest_egg, pet_incubator, breeding_pen)
 
 Workspace
 ├── Plots                -- Folder เปล่าสำหรับเก็บ Plot ของผู้เล่นที่ถูกสร้างขึ้น
-└── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิดของแต่ละ Plot
+├── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิดของแต่ละ Plot
+└── Enemies              -- (ทางเลือก) Folder เก็บ Model ศัตรูสำหรับให้สัตว์เลี้ยงช่วยโจมตี
 
 ReplicatedStorage
-└── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่สามารถวางใน Plot ได้
+├── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางใน Plot ได้ (รวม pet_incubator, breeding_pen)
+└── PetModels            -- (ทางเลือก) Folder เก็บ Model 3D ของสัตว์เลี้ยงแต่ละ Stage (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
 ```
 
 ---
 
-## 🤖 NPCService
+## 🐾 PetSystem (สัตว์เลี้ยงในฟาร์มและผู้ช่วยต่อสู้)
 
-ปัจจุบันมีไฟล์เตรียมไว้ดังนี้:
+ระบบสัตว์เลี้ยงทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`PetNetwork`)**, **ProfileService (`profile.Data.Pets`)**, **InventoryService**, **PlotService** และ **NPCService**:
+
+| ไฟล์ | ฝั่ง | หน้าที่ |
+| --- | --- | --- |
+| `shared/Modules/PetConfig.luau` | Shared | กำหนดสายพันธุ์ (`sprout_slime`, `moss_wolf`, `flora_guardian`, `ancient_treant`), อาหาร, ไข่ และสูตรผสมพันธุ์ |
+| `server/Services/PetService/Server.luau` | Server | Knit Service (`"PetService"`) รับคำสั่ง `PetNetwork`, Rate Limiting, ตรวจเจ้าของ Plot และอัปเดตสถานะ |
+| `server/Services/PetService/PetGrowthManager.luau` | Server | ระบบให้อาหาร, โบนัสอาหารโปรด (`1.25x`), ลดความหิวตามเวลา, เลื่อน Stage และวิวัฒนาการ |
+| `server/Services/PetService/PetEggBreedingManager.luau` | Server | ระบบฟักไข่ (`pet_incubator`) และผสมพันธุ์ (`breeding_pen`) พร้อมรับประกันธุรกรรมไอเทมแบบ Atomic |
+| `server/Services/PetService/PetPlotBrain.luau` | Server | จำลองสัตว์เลี้ยงเดินสุ่มในขอบเขต Plot (`PlacementValidator.withinBounds`) โดยใช้ Anchored Model |
+| `server/Services/PetService/PetCombatController.luau` | Server | พาสัตว์เลี้ยงทีมต่อสู้ (สูงสุด 3 ตัว) เดินตามผู้เล่นและโจมตีศัตรูผ่าน `EnemyController` |
+| `client/StarterPlayerScripts/PetService/PetController.luau` | Client | Knit Controller (`"PetController"`) เก็บ State แบบ Observer และผูกปุ่มลัด `P` |
+| `client/StarterPlayerScripts/PetService/PetVisualRenderer.luau` | Client | แสดง `BillboardGui` บนตัวสัตว์เลี้ยง และเล่น VFX เมื่อกินอาหาร ฟักไข่ วิวัฒนาการ หรือโจมตี |
+| `client/StarterPlayerScripts/UI/PetBarnFrame.luau` | Client | หน้าต่างจัดการสัตว์เลี้ยง ให้อาหาร วิวัฒนาการ และสลับโหมด `Equipped` / `InPlot` / `Stored` |
+| `client/StarterPlayerScripts/UI/IncubatorBreedingModal.luau` | Client | หน้าต่างเลือกไข่เข้าฟัก และเลือกคู่สัตว์เลี้ยงผสมพันธุ์ (เปิดผ่าน `ProximityPrompt` บนอุปกรณ์ใน Plot) |
+
+---
+
+## 🤖 NPCService
 
 ```text
 src/server/Services/NPCService/AnimController.luau
 src/server/Services/NPCService/EnemyController.luau
 ```
 
-ทั้งสองไฟล์ยังเป็นโครงเตรียมไว้สำหรับพัฒนาระบบ Animation และ Enemy ในอนาคต
+- `AnimController` รองรับการโหลดและเล่น `AnimationTrack` ผ่าน `AnimationController > Animator` หรือ `Humanoid > Animator`
+- `EnemyController` ค้นหาศัตรูใกล้เคียง (`GetNearestEnemy`) จากโฟลเดอร์ `Workspace.Enemies` / CollectionService tag `"Enemy"` และคำนวณความเสียหายจากสัตว์เลี้ยง (`ApplyPetDamage`) พร้อมมอบค่า EXP ให้ผู้เล่นเมื่อกำจัดศัตรูสำเร็จ
 
 ---
 
@@ -282,3 +314,12 @@ Namespace ที่ใช้งานอยู่:
   - `Request` / `Ready` — ขอและส่ง Instance ของ Plot ประจำตัวผู้เล่น
   - `TryPlace` — ส่งชื่อสิ่งของและ `CFrame` เพื่อขอวางใน Plot
   - `TryDelete` — ส่ง Instance เป้าหมายเพื่อขอลบออกจาก Plot
+- **`PetNetwork`**
+  - `RequestSync` / `SyncState` — ขอและซิงก์ข้อมูลสัตว์เลี้ยง, เครื่องฟักไข่ และคอกผสมพันธุ์ทั้งหมดของผู้เล่น
+  - `FeedPet` / `TriggerEvolve` — ส่งคำสั่งให้อาหารและวิวัฒนาการสัตว์เลี้ยง
+  - `SetPetState` — สลับโหมดสัตว์เลี้ยง (`InPlot` / `Equipped` / `Stored`)
+  - `StartIncubation` / `ClaimHatchedPet` — เริ่มฟักไข่และรับสัตว์เลี้ยงเมื่อฟักเสร็จ
+  - `StartBreeding` / `ClaimBreedingEgg` — เริ่มผสมพันธุ์และรับไข่เข้ากระเป๋า
+  - `OpenModal` — Server สั่งเปิดหน้าต่าง Incubator/Breeding เมื่อกด `ProximityPrompt`
+  - `PetVisualEvent` *(Unreliable)* — ส่งสัญญาณเล่น VFX (`Eat`, `Evolve`, `Attack`, `Hatch`) บนฝั่ง Client
+  - `NotifyToast` — ส่งข้อความแจ้งเตือนผลลัพธ์ (สำเร็จ/ผิดพลาด) ไปแสดงบน `ErrorToast`

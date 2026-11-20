@@ -16,6 +16,13 @@ local ProfileTemplate = {
 		Stacks = {},
 	},
 	Plot = {},
+	Pets = {
+		MaxPetCapacity = 20,
+		MaxEquippedCombat = 3,
+		Instances = {},
+		Incubators = {},
+		BreedingPens = {},
+	},
 	LogInTimes = 0,
 }
 
