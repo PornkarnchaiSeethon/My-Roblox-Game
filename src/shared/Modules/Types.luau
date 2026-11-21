@@ -88,4 +88,33 @@ export type PetToastInfo = {
 	Message: string,
 }
 
+export type PlanterStateData = {
+	ObjectId: string,
+	PlanterType: string,
+	CropId: string,
+	Stage: string,
+	GrowthProgress: number,
+	PlantedAt: number?,
+	LastSimulatedAt: number?,
+	MoistureUntil: number,
+	FertilizerId: string,
+	HarvestsRemaining: number,
+}
+
+export type HarvestStatEntry = {
+	SeedId: string,
+	TotalCount: number,
+}
+
+export type PlantModalInfo = {
+	ObjectId: string,
+	PlanterType: string,
+}
+
+export type PlantToastInfo = {
+	IsError: boolean,
+	Message: string,
+	Timestamp: number?,
+}
+
 return Types

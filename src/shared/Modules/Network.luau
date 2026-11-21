@@ -109,9 +109,96 @@ local PetNetwork = ByteNet.defineNamespace("PetNetwork", function()
 	}
 end)
 
+local PlantNetwork = ByteNet.defineNamespace("PlantNetwork", function()
+	local PlanterStateStruct = ByteNet.struct({
+		ObjectId = ByteNet.string,
+		PlanterType = ByteNet.string,
+		CropId = ByteNet.string,
+		Stage = ByteNet.string,
+		GrowthProgress = ByteNet.float32,
+		MoistureUntil = ByteNet.uint32,
+		FertilizerId = ByteNet.string,
+		HarvestsRemaining = ByteNet.uint8,
+	})
+
+	local HarvestStatEntryStruct = ByteNet.struct({
+		SeedId = ByteNet.string,
+		TotalCount = ByteNet.uint32,
+	})
+
+	return {
+		RequestSync = ByteNet.definePacket({
+			value = ByteNet.nothing,
+		}),
+		SyncState = ByteNet.definePacket({
+			value = ByteNet.struct({
+				Planters = ByteNet.array(PlanterStateStruct),
+				HarvestStats = ByteNet.array(HarvestStatEntryStruct),
+			}),
+		}),
+		SyncSinglePlanter = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+				IsEmpty = ByteNet.bool,
+				Planter = ByteNet.optional(PlanterStateStruct),
+				UpdatedStat = ByteNet.optional(HarvestStatEntryStruct),
+			}),
+		}),
+		PlantSeed = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+				SeedItemId = ByteNet.string,
+			}),
+		}),
+		WaterPlant = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+			}),
+		}),
+		ApplyFertilizer = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+				FertilizerItemId = ByteNet.string,
+			}),
+		}),
+		HarvestCrop = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+			}),
+		}),
+		UprootPlant = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+			}),
+		}),
+		OpenPlantModal = ByteNet.definePacket({
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+				PlanterType = ByteNet.string,
+			}),
+		}),
+		PlantVisualEvent = ByteNet.definePacket({
+			reliabilityType = "unreliable",
+			value = ByteNet.struct({
+				ObjectId = ByteNet.string,
+				EventType = ByteNet.string, -- "Plant" | "Water" | "Fertilize" | "Mature" | "Harvest"
+				WorldPos = ByteNet.vec3,
+			}),
+		}),
+		NotifyToast = ByteNet.definePacket({
+			value = ByteNet.struct({
+				IsError = ByteNet.bool,
+				Message = ByteNet.string,
+			}),
+		}),
+	}
+end)
+
 return {
 	Pet = PetNetwork,
 	PetNetwork = PetNetwork,
+	Plant = PlantNetwork,
+	PlantNetwork = PlantNetwork,
 	Inventory = ByteNet.defineNamespace("InventoryNetwork", function()
 		local ClientStack = ByteNet.struct({
 			Name = ByteNet.string,

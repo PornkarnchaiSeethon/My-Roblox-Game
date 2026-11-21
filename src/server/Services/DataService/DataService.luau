@@ -6,9 +6,9 @@ local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
 local ProfileService = require(ServerScriptService.ServerPackages.ProfileService)
 
 local ProfileTemplate = {
-	CurrentLevel = 0,
+	CurrentLevel = 1,
 	CurrentExp = 0,
-	ExpForNextLevel = 0,
+	ExpForNextLevel = 100,
 	Cash = 0,
 	Items = {
 		Hotbar = {},
@@ -22,6 +22,11 @@ local ProfileTemplate = {
 		Instances = {},
 		Incubators = {},
 		BreedingPens = {},
+	},
+	Plants = {
+		MaxActivePlanters = 24,
+		Planters = {},
+		HarvestStats = {},
 	},
 	LogInTimes = 0,
 }
@@ -92,11 +97,13 @@ function DataService.AddExp(player: Player, exp: number)
 		warn("can't find player profile")
 		return
 	end
-	profile.Data.CurrentExp += exp
+	profile.Data.CurrentLevel = math.max(1, profile.Data.CurrentLevel or 1)
+	profile.Data.ExpForNextLevel = math.max(100, profile.Data.ExpForNextLevel or 100)
+	profile.Data.CurrentExp = (profile.Data.CurrentExp or 0) + exp
 	while profile.Data.CurrentExp >= profile.Data.ExpForNextLevel do
 		profile.Data.CurrentExp -= profile.Data.ExpForNextLevel
 		profile.Data.CurrentLevel += 1
-		profile.Data.ExpForNextLevel = profile.Data.CurrentLevel * 100
+		profile.Data.ExpForNextLevel = math.max(100, profile.Data.CurrentLevel * 100)
 	end
 end
 
@@ -112,6 +119,8 @@ local function PlayerAdd(player: Player)
 	if profile ~= nil then
 		profile:AddUserId(player.UserId)
 		profile:Reconcile()
+		profile.Data.CurrentLevel = math.max(1, profile.Data.CurrentLevel or 1)
+		profile.Data.ExpForNextLevel = math.max(100, profile.Data.ExpForNextLevel or 100)
 		profile:ListenToRelease(function()
 			Profiles[player] = nil
 			player:Kick()

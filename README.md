@@ -24,6 +24,7 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 | :---: | --- | --- |
 | `B` | Inventory | เปิด / ปิดหน้าต่างกระเป๋า (หรือกดปุ่ม `Bag [B]` บนหน้าจอ) |
 | `P` | Pet System | เปิด / ปิดหน้าต่าง Pet Barn (หรือกดปุ่ม `Pets [P]` บนหน้าจอ) |
+| `H` | Plant System | เปิด / ปิดหน้าต่าง Farm & Almanac (หรือกดปุ่ม `Farm [H]` บนหน้าจอ) |
 | `1` - `9`, `0` | Hotbar | ถือ / เก็บไอเทมในช่อง Hotbar ที่ 1 - 10 |
 | `F` | Plot Placement | เปิด / ปิดโหมดวางสิ่งของใน Plot ของผู้เล่น |
 | `Q` / `E` | Plot Placement | เปลี่ยนสิ่งของที่จะวาง (ก่อนหน้า / ถัดไป) |
@@ -139,6 +140,7 @@ src/server/ServerLoader.server.luau
 | InventoryService | `DataService/InventoryService.luau` | `"InventoryService"` | จัดการ Tool, Inventory, Stack, Hotbar และการบันทึกไอเทม (`Client:GetInventory`) |
 | PlotService | `PlotService/Server.luau` | `"PlotService"` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น (`Client:GetPlot`) |
 | PetService | `PetService/Server.luau` | `"PetService"` | จัดการสัตว์เลี้ยงใน Plot, ให้อาหาร/วิวัฒนาการ, ฟักไข่/ผสมพันธุ์ และผู้ช่วยต่อสู้ (`Client:GetPetsState`) |
+| PlantService | `PlantService/Server.luau` | `"PlantService"` | จัดการระบบเพาะปลูกใน Plot (ปลูกเมล็ด, รดน้ำ, ใส่ปุ๋ย, สปริงเกลอร์, เก็บเกี่ยว, Offline Catch-up) ผ่าน `PlantNetwork` |
 | NPCService | `NPCService/` | — | `AnimController` สำหรับเล่นแอนิเมชัน Rig และ `EnemyController` สำหรับค้นหาเป้าหมายและรับดาเมจจากสัตว์เลี้ยง |
 
 ---
@@ -151,9 +153,9 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 
 ```lua
 {
-	CurrentLevel = 0,
+	CurrentLevel = 1,
 	CurrentExp = 0,
-	ExpForNextLevel = 0,
+	ExpForNextLevel = 100,
 	Cash = 0,
 	Items = {
 		Hotbar = {},
@@ -168,6 +170,11 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 		Incubators = {},
 		BreedingPens = {},
 	},
+	Plants = {
+		MaxActivePlanters = 24,
+		Planters = {},
+		HarvestStats = {},
+	},
 	LogInTimes = 0,
 }
 ```
@@ -177,6 +184,7 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 - `GetProfile(player)` — คืนค่า Profile ปัจจุบันของผู้เล่น
 - `WaitForProfile(player)` — รอจนกว่า Profile จะโหลดเสร็จ (คืนค่า `nil` หากผู้เล่นออกจากเกมก่อน)
 - `OnBeforeProfileRelease(callback)` — ลงทะเบียนฟังก์ชันเพื่อบันทึกข้อมูลก่อนปล่อย Profile
+- `AddExp(player, exp)` — เพิ่มค่าประสบการณ์และคำนวณการเลื่อนระดับเลเวลของผู้เล่นอย่างปลอดภัย
 
 ---
 
@@ -205,17 +213,20 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 ```text
 src/client/StarterPlayerScripts/UI/
 ├── App.luau                      -- สร้าง ScreenGui และ Mount React Root
-├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient และ PetController เข้ากับ UI
+├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient, PetController และ PlantController เข้ากับ UI
 ├── InventoryFrame.luau           -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
 ├── HotbarSlot.luau               -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
 ├── PetBarnFrame.luau             -- หน้าต่างจัดการสัตว์เลี้ยง (ให้อาหาร, วิวัฒนาการ, จัดทีมต่อสู้)
 ├── IncubatorBreedingModal.luau   -- หน้าต่างเครื่องฟักไข่และคอกผสมพันธุ์พร้อมนับเวลาถอยหลัง
+├── CropAlmanacFrame.luau         -- หน้าต่าง Farm & Almanac (ดูแปลงผักที่กำลังโต รดน้ำ/เก็บเกี่ยว และสมุดบันทึกพืช)
+├── PlantModal.luau               -- หน้าต่างจัดการกระบะปลูก (เลือกเมล็ด, รดน้ำ, ใส่ปุ๋ย, เก็บเกี่ยว, ถอนต้นไม้)
 └── Components/
     ├── TabBar.luau               -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
     ├── ItemGrid.luau             -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
     ├── ItemCard.luau             -- การ์ดแสดงไอคอน ชื่อ จำนวน และสีตามประเภทไอเทม
     ├── DetailPanel.luau          -- แผงแสดงรายละเอียดไอเทม และปุ่ม Equip / Unequip / Drop
     ├── PetCard.luau              -- การ์ดแสดงสัตว์เลี้ยง (ระดับความหายาก, Stage, เลเวล, หลอดอาหาร)
+    ├── CropCard.luau             -- การ์ดแสดงข้อมูลพืช (ระดับความหายาก, เวลาโต, ผลผลิต, จำนวนเมล็ด/สถิติเก็บเกี่ยว)
     ├── ErrorToast.luau           -- กล่องแจ้งเตือนสถานะ (แดง/เขียว ปิดตัวเองอัตโนมัติใน 3 วินาที)
     └── LevelBar.luau             -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
 ```
@@ -247,8 +258,12 @@ src/client/StarterPlayerScripts/UI/
 
 ```text
 ServerStorage
-├── Plot                 -- Model ของพื้นที่ผู้เล่น (ต้องมี PrimaryPart, โฟลเดอร์ Objects และ Pets)
-└── AllItems             -- Folder เก็บ Tool ทั้งหมด (รวม berry_feed, golden_apple, evo_crystal, forest_egg, mystic_forest_egg, pet_incubator, breeding_pen)
+├── Plot                 -- Model ของพื้นที่ผู้เล่น (ต้องมี PrimaryPart, โฟลเดอร์ Objects, Pets และ Plants)
+└── AllItems             -- Folder เก็บ Tool ทั้งหมด
+                            • PetSystem: berry_feed, golden_apple, evo_crystal, forest_egg, mystic_forest_egg, pet_incubator, breeding_pen
+                            • PlantSystem (12 ชิ้น): wooden_planter, fertile_garden_bed, hydro_sprinkler, watering_can,
+                              compost_fertilizer, mystic_fertilizer, carrot_seed, berry_seed, moon_herb_seed,
+                              golden_apple_seed, fresh_carrot, moon_herb
 
 Workspace
 ├── Plots                -- Folder เปล่าสำหรับเก็บ Plot ของผู้เล่นที่ถูกสร้างขึ้น
@@ -256,8 +271,9 @@ Workspace
 └── Enemies              -- (ทางเลือก) Folder เก็บ Model ศัตรูสำหรับให้สัตว์เลี้ยงช่วยโจมตี
 
 ReplicatedStorage
-├── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางใน Plot ได้ (รวม pet_incubator, breeding_pen)
-└── PetModels            -- (ทางเลือก) Folder เก็บ Model 3D ของสัตว์เลี้ยงแต่ละ Stage (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
+├── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางใน Plot ได้ (รวม pet_incubator, breeding_pen, wooden_planter, fertile_garden_bed, hydro_sprinkler)
+├── PetModels            -- (ทางเลือก) Folder เก็บ Model 3D ของสัตว์เลี้ยงแต่ละ Stage (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
+└── PlantModels          -- (ทางเลือก) Folder เก็บ Model 3D ของพืชแต่ละ Stage เช่น carrot_seed_Mature (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
 ```
 
 ---
@@ -278,6 +294,31 @@ ReplicatedStorage
 | `client/StarterPlayerScripts/PetService/PetVisualRenderer.luau` | Client | แสดง `BillboardGui` บนตัวสัตว์เลี้ยง และเล่น VFX เมื่อกินอาหาร ฟักไข่ วิวัฒนาการ หรือโจมตี |
 | `client/StarterPlayerScripts/UI/PetBarnFrame.luau` | Client | หน้าต่างจัดการสัตว์เลี้ยง ให้อาหาร วิวัฒนาการ และสลับโหมด `Equipped` / `InPlot` / `Stored` |
 | `client/StarterPlayerScripts/UI/IncubatorBreedingModal.luau` | Client | หน้าต่างเลือกไข่เข้าฟัก และเลือกคู่สัตว์เลี้ยงผสมพันธุ์ (เปิดผ่าน `ProximityPrompt` บนอุปกรณ์ใน Plot) |
+
+---
+
+## 🌱 PlantSystem (ระบบเพาะปลูกและฟาร์มใน Plot)
+
+ระบบเพาะปลูกทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`PlantNetwork`)**, **ProfileService (`profile.Data.Plants`)**, **PlotService**, **InventoryService** และ **PetService**:
+
+| ไฟล์ | ฝั่ง | หน้าที่ |
+| --- | --- | --- |
+| `shared/Modules/PlantConfig.luau` | Shared | กำหนดสายพันธุ์พืช (`carrot_seed`, `berry_seed`, `moon_herb_seed`, `golden_apple_seed`), กระบะปลูก (`wooden_planter`, `fertile_garden_bed`), ปุ๋ย (`compost_fertilizer`, `mystic_fertilizer`), ค่าคงที่ (`SprinklerRadiusStuds = 12`, `InteractDistanceStuds = 24`, `NaturePetAuraBonus = 0.10`) และฟังก์ชัน `GetStageFromProgress` / `IsFarmingObject` |
+| `shared/Modules/ToolConfig.luau` | Shared | เพิ่มข้อมูลไอเทมเกษตร 12 ชิ้น (กระบะปลูก, สปริงเกลอร์, บัวรดน้ำ, ปุ๋ย, เมล็ดพันธุ์ และผลผลิต) |
+| `shared/Modules/Types.luau` | Shared | ประกาศชนิดข้อมูล `PlanterStateData`, `HarvestStatEntry`, `PlantModalInfo`, `PlantToastInfo` |
+| `server/Services/PlantService/Server.luau` | Server | Knit Service (`"PlantService"`) รับคำสั่ง `PlantNetwork`, Rate Limiting, Player Action Lock, ลูปจำลองการเติบโตทุก `1.0s`, Offline Catch-up และส่ง Delta Sync / VFX |
+| `server/Services/PlantService/PlantGrowthManager.luau` | Server | ตรรกะการปลูก, รดน้ำ, ใส่ปุ๋ย, คำนวณการเติบโต (แยกช่วงดินชุ่มชื้น/แห้ง, โบนัสกระบะ/ปุ๋ย/สปริงเกลอร์/ออร่าสัตว์เลี้ยง) และการเก็บเกี่ยวพร้อม Rollback เมื่อกระเป๋าเต็ม |
+| `server/Services/PlantService/PlantPlotManager.luau` | Server | ค้นหากระบะปลูกจาก `ObjectId`, ตรวจรัศมี `hydro_sprinkler` (12 Studs), ตั้งค่า Visual Attributes (`CropId`, `PlantStage`, `IsWet`, `MoistureUntil`, `GrowthProgress`) และผูก `ProximityPrompt` |
+| `client/StarterPlayerScripts/PlantService/PlantController.luau` | Client | Knit Controller (`"PlantController"`) เก็บ State แบบ Observer, ผูกปุ่มลัด `H`, และรองรับทางลัดอัตโนมัติตาม Tool ที่ถืออยู่ในมือเมื่อกดโต้ตอบกระบะปลูก |
+| `client/StarterPlayerScripts/PlantService/PlantVisualRenderer.luau` | Client | แสดงโมเดลพืช 3D ตาม Stage (จาก `ReplicatedStorage.PlantModels` หรือสร้าง Placeholder อัตโนมัติ), เปลี่ยนสีดินเปียก/แห้ง, แสดง `BillboardGui` และเล่น VFX (`Plant`, `Water`, `Fertilize`, `Mature`, `Harvest`) |
+| `client/StarterPlayerScripts/UI/PlantModal.luau` | Client | หน้าต่างจัดการกระบะปลูก (เลือกเมล็ดลงแปลงว่าง, ดูสถานะ/นับเวลาชุ่มชื้นสด, รดน้ำ, ใส่ปุ๋ย, เก็บเกี่ยว, ถอนต้นไม้) |
+| `client/StarterPlayerScripts/UI/CropAlmanacFrame.luau` | Client | หน้าต่าง `FARM & ALMANAC` แท็บ `Active Planters` (ดูทุกแปลงพร้อมปุ่ม Water/Harvest ด่วน) และแท็บ `Crop Almanac` (สารานุกรมพืชและสถิติเก็บเกี่ยว) |
+| `client/StarterPlayerScripts/UI/Components/CropCard.luau` | Client | การ์ดแสดงข้อมูลพืช (ระดับความหายาก, เวลาเติบโต, ผลผลิต/รอบเก็บเกี่ยว, จำนวนเมล็ด และสถิติเก็บเกี่ยว) |
+
+### การทำงานร่วมกับระบบอื่นในเกม (Ecosystem Synergy)
+- **ร่วมกับ `PlotService`:** วางและบันทึก `wooden_planter`, `fertile_garden_bed` และ `hydro_sprinkler` พร้อม `ObjectId` ถาวรผ่าน `PlotStorage`, ลงทะเบียน `RegisterDeleteValidator` ป้องกันการลบกระบะที่มีพืชกำลังปลูกอยู่ และเชื่อม `OnPlotLoaded` เพื่อรัน Offline Catch-up และผูก `ProximityPrompt` อัตโนมัติ
+- **ร่วมกับ `InventoryService`:** ตรวจสอบและหักเมล็ดพันธุ์/ปุ๋ย (`HasItem` / `ConsumeItem`), ตรวจการมี `watering_can` ในกระเป๋าขณะรดน้ำ และมอบผลผลิตเข้ากระเป๋าแบบปลอดภัย (`GiveItem`) พร้อม Rollback หากกระเป๋าเต็มตั้งแต่ชิ้นแรก (และรองรับ Partial Harvest เมื่อเหลือที่ว่างบางส่วน)
+- **ร่วมกับ `PetService`:** ผลผลิตจาก `berry_seed` (`berry_feed`) และ `golden_apple_seed` (`golden_apple`) สามารถนำไปให้อาหารสัตว์เลี้ยงได้ทันที และเมื่อมีสัตว์เลี้ยงสายธรรมชาติ (`sprout_slime` หรือ `flora_guardian`) เดินอยู่ใน Plot (`State == "InPlot"`) จะมอบ **Nature Pet Aura** เพิ่มความเร็วเติบโตของพืชอีก `+10%` (`NaturePetAuraBonus`)
 
 ---
 
@@ -323,3 +364,15 @@ Namespace ที่ใช้งานอยู่:
   - `OpenModal` — Server สั่งเปิดหน้าต่าง Incubator/Breeding เมื่อกด `ProximityPrompt`
   - `PetVisualEvent` *(Unreliable)* — ส่งสัญญาณเล่น VFX (`Eat`, `Evolve`, `Attack`, `Hatch`) บนฝั่ง Client
   - `NotifyToast` — ส่งข้อความแจ้งเตือนผลลัพธ์ (สำเร็จ/ผิดพลาด) ไปแสดงบน `ErrorToast`
+- **`PlantNetwork`**
+  - `RequestSync` — Client ขอข้อมูลแปลงปลูกและสถิติการเก็บเกี่ยวทั้งหมดจาก Server
+  - `SyncState` — Server ซิงก์ข้อมูล `Planters` (`PlanterStateStruct`) และ `HarvestStats` (`HarvestStatEntryStruct`) ทั้งหมดให้ Client
+  - `SyncSinglePlanter` — Server ส่งอัปเดตเฉพาะแปลงเดียวแบบ Delta (`ObjectId`, `IsEmpty`, `Planter?`, `UpdatedStat?`)
+  - `PlantSeed` — ส่งคำสั่งปลูกเมล็ดพันธุ์ (`ObjectId`, `SeedItemId`) ลงในกระบะปลูก
+  - `WaterPlant` — ส่งคำสั่งรดน้ำให้แปลงปลูก (`ObjectId`)
+  - `ApplyFertilizer` — ส่งคำสั่งใส่ปุ๋ยบำรุงแปลงปลูก (`ObjectId`, `FertilizerItemId`)
+  - `HarvestCrop` — ส่งคำสั่งเก็บเกี่ยวผลผลิตเมื่อพืชโตเต็มวัย (`ObjectId`)
+  - `UprootPlant` — ส่งคำสั่งถอนต้นไม้ออกจากแปลงปลูก (`ObjectId`)
+  - `OpenPlantModal` — Server สั่งเปิดหน้าต่าง `PlantModal` (หรือทำทางลัดตาม Tool ที่ถืออยู่) เมื่อผู้เล่นกด `ProximityPrompt`
+  - `PlantVisualEvent` *(Unreliable)* — ส่งสัญญาณเล่น VFX (`Plant`, `Water`, `Fertilize`, `Mature`, `Harvest`) ตามตำแหน่ง `WorldPos` บนฝั่ง Client
+  - `NotifyToast` — ส่งข้อความแจ้งเตือนผลลัพธ์ของระบบเพาะปลูก (สำเร็จ/ผิดพลาด) ไปแสดงบน `ErrorToast`

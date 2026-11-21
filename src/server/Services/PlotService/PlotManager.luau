@@ -6,6 +6,7 @@ local PlotSpawnPool = require(script.Parent.PlotSpawnPool)
 local InventoryService = require(script.Parent.Parent.DataService.InventoryService)
 local PlacementValidator = require(ReplicatedStorage.Shared.Modules:WaitForChild("PlacementValidator"))
 local PetConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("PetConfig"))
+local PlantConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("PlantConfig"))
 local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
 
 local PlotManager = {}
@@ -22,10 +23,11 @@ function PlotManager.registerDeleteValidator(validator: (Player, Model) -> (bool
 	table.insert(deleteValidators, validator)
 end
 
--- ตั้งค่า Attribute ObjectId และ ProximityPrompt สำหรับ Functional Plot Objects (Incubator / BreedingPen)
+-- ตั้งค่า Attribute ObjectId และ ProximityPrompt สำหรับ Functional Plot Objects (Incubator / BreedingPen / Farming Objects)
 function PlotManager.setupObject(player: Player, objectModel: Model, savedObjectId: string?)
 	local modalType = PetConfig.FunctionalPlotObjects[objectModel.Name]
-	if not modalType then
+	local isFarmingObject = PlantConfig.IsFarmingObject(objectModel.Name)
+	if not modalType and not isFarmingObject then
 		return
 	end
 
@@ -35,6 +37,10 @@ function PlotManager.setupObject(player: Player, objectModel: Model, savedObject
 
 	objectModel:SetAttribute("ObjectId", objectId)
 	objectModel:SetAttribute("OwnerUserId", player.UserId)
+
+	if not modalType then
+		return
+	end
 
 	local promptParent: Instance? = objectModel.PrimaryPart or objectModel:FindFirstChildWhichIsA("BasePart", true)
 	if not promptParent then
@@ -93,6 +99,11 @@ function PlotManager.spawnPlot(player: Player): Model
 		local petsFolder = Instance.new("Folder")
 		petsFolder.Name = "Pets"
 		petsFolder.Parent = plot
+	end
+	if not plot:FindFirstChild("Plants") then
+		local plantsFolder = Instance.new("Folder")
+		plantsFolder.Name = "Plants"
+		plantsFolder.Parent = plot
 	end
 
 	plot.Parent = plotsFolder
@@ -174,10 +185,18 @@ function PlotManager.delete(player: Player, targetInstance: Instance): boolean
 		for _, validator in deleteValidators do
 			local allowed, reason = validator(player, actualObject)
 			if not allowed then
-				Network.PetNetwork.NotifyToast.sendTo({
-					IsError = true,
-					Message = reason or "ไม่สามารถลบอุปกรณ์นี้ได้ในขณะนี้",
-				}, player)
+				local message = reason or "ไม่สามารถลบอุปกรณ์นี้ได้ในขณะนี้"
+				if PlantConfig.IsFarmingObject(actualObject.Name) and Network.PlantNetwork then
+					Network.PlantNetwork.NotifyToast.sendTo({
+						IsError = true,
+						Message = message,
+					}, player)
+				else
+					Network.PetNetwork.NotifyToast.sendTo({
+						IsError = true,
+						Message = message,
+					}, player)
+				end
 				return false
 			end
 		end

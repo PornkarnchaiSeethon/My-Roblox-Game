@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local React = require(ReplicatedStorage.Packages.react)
+local PlantConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("PlantConfig"))
 
 local Components = script.Parent.Components
 local ErrorToast = require(Components.ErrorToast)
@@ -10,6 +11,8 @@ local InventoryFrame = require(script.Parent.InventoryFrame)
 local HotbarSlot = require(script.Parent.HotbarSlot)
 local PetBarnFrame = require(script.Parent.PetBarnFrame)
 local IncubatorBreedingModal = require(script.Parent.IncubatorBreedingModal)
+local CropAlmanacFrame = require(script.Parent.CropAlmanacFrame)
+local PlantModal = require(script.Parent.PlantModal)
 
 local e = React.createElement
 
@@ -57,13 +60,35 @@ export type PetControllerLike = {
 	ClaimBreedingEgg: (objectId: string) -> (),
 }
 
+export type PlantControllerLike = {
+	State: {
+		IsAlmanacOpen: boolean,
+		ActiveModal: { ObjectId: string, PlanterType: string }?,
+		PlantersById: { [string]: any },
+		HarvestStats: { [string]: number },
+		Toast: { IsError: boolean, Message: string }?,
+	},
+	Subscribe: (callback: () -> ()) -> (() -> ()),
+	ToggleAlmanac: () -> (),
+	SetAlmanacOpen: (isOpen: boolean) -> (),
+	CloseModal: () -> (),
+	ClearToast: () -> (),
+	PlantSeed: (objectId: string, seedItemId: string) -> (),
+	WaterPlant: (objectId: string) -> (),
+	ApplyFertilizer: (objectId: string, fertilizerItemId: string) -> (),
+	HarvestCrop: (objectId: string) -> (),
+	UprootPlant: (objectId: string) -> (),
+}
+
 type Props = {
 	client: InventoryController?,
 	petClient: PetControllerLike?,
+	plantClient: PlantControllerLike?,
 }
 
 local runtimeClient: InventoryController? = nil
 local runtimePetClient: PetControllerLike? = nil
+local runtimePlantClient: PlantControllerLike? = nil
 
 -- ดึง Client แบบไม่ Yield (ปลอดภัยสำหรับเรียกตอน Render)
 local function tryGetRuntimeClient(): InventoryController?
@@ -109,6 +134,28 @@ local function tryGetRuntimePetClient(): PetControllerLike?
 	return nil
 end
 
+local function tryGetRuntimePlantClient(): PlantControllerLike?
+	if runtimePlantClient then
+		return runtimePlantClient
+	end
+
+	local player = Players.LocalPlayer
+	if not player then
+		return nil
+	end
+
+	local playerScripts = player:FindFirstChild("PlayerScripts")
+	local plantFolder = playerScripts and playerScripts:FindFirstChild("PlantService")
+	local targetModule = plantFolder and plantFolder:FindFirstChild("PlantController")
+	if targetModule and targetModule:IsA("ModuleScript") then
+		local loaded = (require :: any)(targetModule) :: PlantControllerLike
+		runtimePlantClient = loaded
+		return loaded
+	end
+
+	return nil
+end
+
 local function MainFrame(props: Props?)
 	local client, setClient = React.useState(function(): InventoryController?
 		if props and props.client then
@@ -124,12 +171,20 @@ local function MainFrame(props: Props?)
 		return tryGetRuntimePetClient()
 	end)
 
+	local plantClient, setPlantClient = React.useState(function(): PlantControllerLike?
+		if props and props.plantClient then
+			return props.plantClient
+		end
+		return tryGetRuntimePlantClient()
+	end)
+
 	local inventoryOpen, setInventoryOpen = React.useState(if client then client.IsOpen else false)
 	local inventoryData, setInventoryData = React.useState(if client then client.Data else nil)
 	local selectedStackId, setSelectedStackId = React.useState(if client then client.SelectedStackId else nil)
 	local lastError, setLastError = React.useState(if client then client.LastError else nil)
 
 	local _, setPetRevision = React.useState(0)
+	local _, setPlantRevision = React.useState(0)
 
 	-- ถ้ารอบแรกยังหา InventoryClient ไม่เจอ ให้รอโหลดใน useEffect แทนการบล็อก Render
 	React.useEffect(function()
@@ -192,6 +247,36 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.petClient })
 
+	-- รอโหลด PlantController แบบไม่บล็อก Render
+	React.useEffect(function()
+		if props and props.plantClient then
+			setPlantClient(props.plantClient)
+			return
+		end
+		if plantClient then
+			return
+		end
+
+		local thread = task.spawn(function()
+			local player = Players.LocalPlayer
+			if not player then
+				return
+			end
+			local playerScripts = player:WaitForChild("PlayerScripts")
+			local plantFolder = playerScripts:WaitForChild("PlantService")
+			local targetModule = plantFolder:WaitForChild("PlantController")
+			if targetModule:IsA("ModuleScript") then
+				local loaded = (require :: any)(targetModule) :: PlantControllerLike
+				runtimePlantClient = loaded
+				setPlantClient(loaded)
+			end
+		end)
+
+		return function()
+			task.cancel(thread)
+		end
+	end, { props and props.plantClient })
+
 	-- Sync ข้อมูล Inventory และ Subscribe
 	React.useEffect(function()
 		if not client then
@@ -224,6 +309,19 @@ local function MainFrame(props: Props?)
 		end)
 	end, { petClient })
 
+	-- Subscribe ข้อมูลแปลงผักจาก PlantController
+	React.useEffect(function()
+		if not plantClient then
+			return
+		end
+
+		return plantClient.Subscribe(function()
+			setPlantRevision(function(prev)
+				return prev + 1
+			end)
+		end)
+	end, { plantClient })
+
 	if not client then
 		return nil
 	end
@@ -233,8 +331,35 @@ local function MainFrame(props: Props?)
 	local petModal = if petState then petState.ActiveModal else nil
 	local petToast = if petState then petState.Toast else nil
 
-	local toastMessage: string? = if petToast then petToast.Message else lastError
-	local toastIsError: boolean = if petToast then petToast.IsError else true
+	local plantState = if plantClient then plantClient.State else nil
+	local plantAlmanacOpen = if plantState then plantState.IsAlmanacOpen else false
+	local plantModal = if plantState then plantState.ActiveModal else nil
+	local plantToast = if plantState then plantState.Toast else nil
+
+	local seedCounts: { [string]: number } = {}
+	local fertilizerCounts: { [string]: number } = {}
+	local hasWateringCan = false
+	if inventoryData and inventoryData.Stacks then
+		for _, stack in inventoryData.Stacks do
+			local itemName = stack.Name
+			if PlantConfig.Crops[itemName] then
+				seedCounts[itemName] = (seedCounts[itemName] or 0) + stack.Count
+			elseif PlantConfig.Fertilizers[itemName] then
+				fertilizerCounts[itemName] = (fertilizerCounts[itemName] or 0) + stack.Count
+			elseif itemName == "watering_can" and stack.Count > 0 then
+				hasWateringCan = true
+			end
+		end
+	end
+
+	local toastMessage: string? = if plantToast
+		then plantToast.Message
+		elseif petToast then petToast.Message
+		else lastError
+	local toastIsError: boolean = if plantToast
+		then plantToast.IsError
+		elseif petToast then petToast.IsError
+		else true
 
 	return e("Frame", {
 		Size = UDim2.fromScale(1, 1),
@@ -256,9 +381,15 @@ local function MainFrame(props: Props?)
 			ZIndex = 20,
 			[React.Event.Activated] = function()
 				local nextOpen = not inventoryOpen
-				if nextOpen and petClient then
-					petClient.SetBarnOpen(false)
-					petClient.CloseModal()
+				if nextOpen then
+					if petClient then
+						petClient.SetBarnOpen(false)
+						petClient.CloseModal()
+					end
+					if plantClient then
+						plantClient.SetAlmanacOpen(false)
+						plantClient.CloseModal()
+					end
 				end
 				setInventoryOpen(nextOpen)
 				client.SetWindowOpen(nextOpen)
@@ -288,9 +419,15 @@ local function MainFrame(props: Props?)
 			AutoButtonColor = true,
 			ZIndex = 20,
 			[React.Event.Activated] = function()
-				if not petBarnOpen and inventoryOpen then
-					setInventoryOpen(false)
-					client.SetWindowOpen(false)
+				if not petBarnOpen then
+					if inventoryOpen then
+						setInventoryOpen(false)
+						client.SetWindowOpen(false)
+					end
+					if plantClient then
+						plantClient.SetAlmanacOpen(false)
+						plantClient.CloseModal()
+					end
 				end
 				petClient.ToggleBarn()
 			end,
@@ -300,6 +437,43 @@ local function MainFrame(props: Props?)
 				Thickness = 1.5,
 				Color = if petBarnOpen
 					then Color3.fromRGB(120, 230, 160)
+					else Color3.fromRGB(62, 70, 92),
+			}),
+		}),
+
+		ToggleFarm = plantClient and e("TextButton", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 14, 0.46, 104),
+			Size = UDim2.fromOffset(118, 42),
+			BackgroundColor3 = if plantAlmanacOpen
+				then Color3.fromRGB(205, 145, 42)
+				else Color3.fromRGB(28, 32, 44),
+			TextColor3 = Color3.fromRGB(245, 247, 255),
+			Text = if plantAlmanacOpen then "Close [H]" else "Farm [H]",
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			TextWrapped = false,
+			AutoButtonColor = true,
+			ZIndex = 20,
+			[React.Event.Activated] = function()
+				if not plantAlmanacOpen then
+					if inventoryOpen then
+						setInventoryOpen(false)
+						client.SetWindowOpen(false)
+					end
+					if petClient then
+						petClient.SetBarnOpen(false)
+						petClient.CloseModal()
+					end
+				end
+				plantClient.ToggleAlmanac()
+			end,
+		}, {
+			Corner = e("UICorner", { CornerRadius = UDim.new(0, 10) }),
+			Stroke = e("UIStroke", {
+				Thickness = 1.5,
+				Color = if plantAlmanacOpen
+					then Color3.fromRGB(250, 210, 110)
 					else Color3.fromRGB(62, 70, 92),
 			}),
 		}),
@@ -347,11 +521,37 @@ local function MainFrame(props: Props?)
 			onClaimBreedingEgg = petClient.ClaimBreedingEgg,
 			onClose = petClient.CloseModal,
 		}),
+		CropAlmanac = (plantClient and plantState and plantAlmanacOpen) and e(CropAlmanacFrame, {
+			plantersById = plantState.PlantersById,
+			harvestStats = plantState.HarvestStats,
+			seedCounts = seedCounts,
+			hasWateringCan = hasWateringCan,
+			onWater = plantClient.WaterPlant,
+			onHarvest = plantClient.HarvestCrop,
+			onClose = function()
+				plantClient.SetAlmanacOpen(false)
+			end,
+		}),
+		PlantModal = (plantClient and plantState and plantModal) and e(PlantModal, {
+			ModalInfo = plantModal,
+			PlanterState = plantState.PlantersById[plantModal.ObjectId],
+			SeedCounts = seedCounts,
+			HasWateringCan = hasWateringCan,
+			FertilizerCounts = fertilizerCounts,
+			OnPlantSeed = plantClient.PlantSeed,
+			OnWater = plantClient.WaterPlant,
+			OnFertilize = plantClient.ApplyFertilizer,
+			OnHarvest = plantClient.HarvestCrop,
+			OnUproot = plantClient.UprootPlant,
+			OnClose = plantClient.CloseModal,
+		}),
 		Error = e(ErrorToast, {
 			message = toastMessage,
 			isError = toastIsError,
 			onDismiss = function()
-				if petToast and petClient then
+				if plantToast and plantClient then
+					plantClient.ClearToast()
+				elseif petToast and petClient then
 					petClient.ClearToast()
 				else
 					client.ClearError()
