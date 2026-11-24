@@ -31,31 +31,6 @@ ToolConfig.Items = {
 		IsDroppable = true,
 		WeaponStats = { Damage = 18, Cooldown = 0.55, Range = 9.5 },
 	},
-	iron_sword = {
-		DisplayName = "Iron Sword",
-		ItemType = "Weapon",
-		MaxStack = 1,
-		Description = "ดาบเหล็กกล้าสำหรับต่อสู้กับมอนสเตอร์ป่าและบอส",
-		Image = "rbxassetid://257983597",
-		IsDroppable = true,
-		WeaponStats = { Damage = 28, Cooldown = 0.50, Range = 10.5 },
-	},
-	slime_gel = {
-		DisplayName = "Slime Gel",
-		ItemType = "Resource",
-		MaxStack = 32,
-		Description = "เจลเหนียวหนืดที่ได้จาก Moss Slime ใช้เป็นวัตถุดิบคราฟต์และขาย",
-		Image = "rbxassetid://1030303001",
-		IsDroppable = true,
-	},
-	wolf_fang = {
-		DisplayName = "Wolf Fang",
-		ItemType = "Resource",
-		MaxStack = 32,
-		Description = "เขี้ยวหมาป่าคมกริบ ดรอปจาก Feral Moss Wolf",
-		Image = "rbxassetid://1030303002",
-		IsDroppable = true,
-	},
 } :: { [string]: ToolData }
 
 local function getToolName(toolOrName: Tool | string): string

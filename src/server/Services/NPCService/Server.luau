@@ -260,11 +260,16 @@ function NPCService:KnitStart()
 	end
 
 	Players.PlayerAdded:Connect(function(player: Player)
-		syncBossesForPlayer(player, EnemyController.GetActiveBossEntries())
+		-- Defer so ByteNet's PlayerAdded handler initializes per-player channels first (LIFO signal order)
+		task.defer(function()
+			if player.Parent then
+				syncBossesForPlayer(player, EnemyController.GetActiveBossEntries())
+			end
+		end)
 	end)
 
 	Network.NPCNetwork.PlayerAttackNPC.listen(function(data, player)
-		if type(data) ~= "table" or not isValidNPCUID(data.NPCUID) then
+		if not player or type(data) ~= "table" or not isValidNPCUID(data.NPCUID) then
 			return
 		end
 		local npcUID = data.NPCUID :: string
@@ -302,7 +307,7 @@ function NPCService:KnitStart()
 	end)
 
 	Network.NPCNetwork.InteractNPC.listen(function(data, player)
-		if type(data) ~= "table" or not isValidNPCUID(data.NPCUID) then
+		if not player or type(data) ~= "table" or not isValidNPCUID(data.NPCUID) then
 			return
 		end
 		local npcUID = data.NPCUID :: string

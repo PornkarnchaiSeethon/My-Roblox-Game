@@ -19,7 +19,7 @@ export type SkillCasterEntry = {
 	HalfHeight: number,
 	HP: number,
 	IsDead: boolean,
-	State: string,
+	State: Types.NPCAIState,
 	BusyUntil: number,
 	ActiveSkillId: string,
 }
@@ -383,7 +383,8 @@ function NPCSkillManager.BeginSkillCast(
 			end
 			npcEntry.ActiveSkillId = ""
 			model:SetAttribute("ActiveSkillId", "")
-			if npcEntry.State == "SkillCast" or npcEntry.State == "SkillWindup" then
+			local currentState: Types.NPCAIState = npcEntry.State
+			if currentState == "SkillCast" or currentState == "SkillWindup" then
 				npcEntry.State = "Chase"
 			end
 		end)

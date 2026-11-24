@@ -486,7 +486,7 @@ function EnemyController.ApplyDamage(attackerPlayer: Player?, target: Model | st
 
 		if attackerPlayer and attackerPlayer.Parent then
 			rec.Contributors[attackerPlayer] = (rec.Contributors[attackerPlayer] or 0) + damage
-			if not rec.TargetPlayer and rec.State ~= "ReturnToSpawn" then
+			if not rec.TargetPlayer then
 				rec.TargetPlayer = attackerPlayer
 				if rec.State == "Idle" or rec.State == "Patrol" then
 					rec.State = "Chase"
@@ -571,7 +571,8 @@ function EnemyController.StepAllEnemies(dt: number)
 		local currentPos = rec.Model:GetPivot().Position
 		local flatSpawnDist = Vector3.new(currentPos.X - rec.SpawnPos.X, 0, currentPos.Z - rec.SpawnPos.Z).Magnitude
 
-		if rec.State == "ReturnToSpawn" then
+		local currentState: Types.NPCAIState = rec.State
+		if currentState == "ReturnToSpawn" then
 			if flatSpawnDist <= 2.0 then
 				rec.State = "Idle"
 				rec.HP = rec.Definition.MaxHP
