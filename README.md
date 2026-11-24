@@ -25,6 +25,7 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 | `B` | Inventory | เปิด / ปิดหน้าต่างกระเป๋า (หรือกดปุ่ม `Bag [B]` บนหน้าจอ) |
 | `P` | Pet System | เปิด / ปิดหน้าต่าง Pet Barn (หรือกดปุ่ม `Pets [P]` บนหน้าจอ) |
 | `H` | Plant System | เปิด / ปิดหน้าต่าง Farm & Almanac (หรือกดปุ่ม `Farm [H]` บนหน้าจอ) |
+| `M` | Admin System | เปิด / ปิดหน้าต่าง Admin Control Panel (เฉพาะผู้ดูแลระบบ หรือกดปุ่ม `Admin [M]` บนหน้าจอ) |
 | `1` - `9`, `0` | Hotbar | ถือ / เก็บไอเทมในช่อง Hotbar ที่ 1 - 10 |
 | `F` | Plot Placement | เปิด / ปิดโหมดวางสิ่งของใน Plot ของผู้เล่น |
 | `Q` / `E` | Plot Placement | เปลี่ยนสิ่งของที่จะวาง (ก่อนหน้า / ถัดไป) |
@@ -141,6 +142,7 @@ src/server/ServerLoader.server.luau
 | PlotService | `PlotService/Server.luau` | `"PlotService"` | สร้าง โหลด บันทึก วาง และลบสิ่งของใน Plot ของผู้เล่น (`Client:GetPlot`) |
 | PetService | `PetService/Server.luau` | `"PetService"` | จัดการสัตว์เลี้ยงใน Plot, ให้อาหาร/วิวัฒนาการ, ฟักไข่/ผสมพันธุ์ และผู้ช่วยต่อสู้ (`Client:GetPetsState`) |
 | PlantService | `PlantService/Server.luau` | `"PlantService"` | จัดการระบบเพาะปลูกใน Plot (ปลูกเมล็ด, รดน้ำ, ใส่ปุ๋ย, สปริงเกลอร์, เก็บเกี่ยว, Offline Catch-up) ผ่าน `PlantNetwork` |
+| AdminService | `AdminService/Server.luau` | `"AdminService"` | ตรวจสอบสิทธิ์ผู้ดูแลระบบแบบ Server-Authoritative, ตรวจสอบข้อมูลผู้เล่น, เสกไอเทม, ปรับความเร็วเดิน และบันทึก Audit Log ผ่าน `AdminNetwork` |
 | NPCService | `NPCService/` | — | `AnimController` สำหรับเล่นแอนิเมชัน Rig และ `EnemyController` สำหรับค้นหาเป้าหมายและรับดาเมจจากสัตว์เลี้ยง |
 
 ---
@@ -213,13 +215,14 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 ```text
 src/client/StarterPlayerScripts/UI/
 ├── App.luau                      -- สร้าง ScreenGui และ Mount React Root
-├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient, PetController และ PlantController เข้ากับ UI
+├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient, PetController, PlantController และ AdminController เข้ากับ UI
 ├── InventoryFrame.luau           -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
 ├── HotbarSlot.luau               -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
 ├── PetBarnFrame.luau             -- หน้าต่างจัดการสัตว์เลี้ยง (ให้อาหาร, วิวัฒนาการ, จัดทีมต่อสู้)
 ├── IncubatorBreedingModal.luau   -- หน้าต่างเครื่องฟักไข่และคอกผสมพันธุ์พร้อมนับเวลาถอยหลัง
 ├── CropAlmanacFrame.luau         -- หน้าต่าง Farm & Almanac (ดูแปลงผักที่กำลังโต รดน้ำ/เก็บเกี่ยว และสมุดบันทึกพืช)
 ├── PlantModal.luau               -- หน้าต่างจัดการกระบะปลูก (เลือกเมล็ด, รดน้ำ, ใส่ปุ๋ย, เก็บเกี่ยว, ถอนต้นไม้)
+├── AdminPanelFrame.luau          -- หน้าต่าง Admin Control Panel (แท็บ Players, Item Spawner, Self Speed และ Audit Log)
 └── Components/
     ├── TabBar.luau               -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
     ├── ItemGrid.luau             -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
@@ -227,6 +230,7 @@ src/client/StarterPlayerScripts/UI/
     ├── DetailPanel.luau          -- แผงแสดงรายละเอียดไอเทม และปุ่ม Equip / Unequip / Drop
     ├── PetCard.luau              -- การ์ดแสดงสัตว์เลี้ยง (ระดับความหายาก, Stage, เลเวล, หลอดอาหาร)
     ├── CropCard.luau             -- การ์ดแสดงข้อมูลพืช (ระดับความหายาก, เวลาโต, ผลผลิต, จำนวนเมล็ด/สถิติเก็บเกี่ยว)
+    ├── AdminItemSpawnCard.luau   -- การ์ดเสกไอเทมในหน้า Admin Spawner (เสกให้ตัวเอง/เป้าหมาย พร้อมเตือนเมื่อขาด Tool ใน Studio)
     ├── ErrorToast.luau           -- กล่องแจ้งเตือนสถานะ (แดง/เขียว ปิดตัวเองอัตโนมัติใน 3 วินาที)
     └── LevelBar.luau             -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
 ```
@@ -322,6 +326,29 @@ ReplicatedStorage
 
 ---
 
+## 🛡️ AdminSystem (ระบบผู้ดูแลระบบและหน้าต่างควบคุม)
+
+ระบบผู้ดูแลระบบทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`AdminNetwork`)**, **DataService**, **InventoryService** และ **ToolConfig**:
+
+| ไฟล์ | ฝั่ง | หน้าที่ |
+| --- | --- | --- |
+| `shared/Modules/AdminConfig.luau` | Shared | ตั้งค่าสิทธิ์แอดมิน (`AllowCreator`, `AllowStudioAccess`, `AdminUserIds`, `GroupConfig`), ช่วงความเร็วเดิน (`MinWalkSpeed = 4`, `MaxWalkSpeed = 120`, `SpeedPresets`), จำนวนเสกสูงสุดต่อครั้ง (`99`) และขนาด Audit Log (`50`) |
+| `shared/Modules/Types.luau` | Shared | ประกาศชนิดข้อมูล `AdminPlayerSummary`, `AdminStackItem`, `AdminPlayerDetail`, `AdminAuditEntry`, `AdminToastInfo` |
+| `server/Services/AdminService/Server.luau` | Server | Knit Service (`"AdminService"`) รับคำสั่ง `AdminNetwork`, ตรวจสิทธิ์ทุก Packet, Rate Limiting (Read + Token Bucket สำหรับ Mutation), Action Lock และคงค่า WalkSpeed เมื่อตัวละครเกิดใหม่ |
+| `server/Services/AdminService/AdminAuthManager.luau` | Server | ตรวจสอบสิทธิ์แอดมิน (Studio, Creator, `AdminUserIds`, Group Rank) พร้อม Cache และล้างเมื่อผู้เล่นออก |
+| `server/Services/AdminService/AdminActionExecutor.luau` | Server | สร้างสรุป/รายละเอียดผู้เล่น, เสกไอเทมผ่าน `InventoryService.GiveItem`, ปรับ WalkSpeed, ตรวจสอบไอเทมที่ขาดใน `ServerStorage.AllItems` และบันทึก Audit Log |
+| `client/StarterPlayerScripts/AdminService/AdminController.luau` | Client | Knit Controller (`"AdminController"`) เก็บ State แบบ Observer, ซิงก์สิทธิ์จาก Server และผูกปุ่มลัด `M` (เฉพาะผู้ดูแลระบบ) |
+| `client/StarterPlayerScripts/UI/AdminPanelFrame.luau` | Client | หน้าต่าง `ADMIN CONTROL PANEL [M]` ประกอบด้วย 4 แท็บ: `Players` (ตรวจข้อมูล/กระเป๋าผู้เล่น), `Item Spawner` (ค้นหา/กรองหมวดหมู่และเสกไอเทม), `Self Speed` (Preset/กำหนดเอง) และ `Audit Log` |
+| `client/StarterPlayerScripts/UI/Components/AdminItemSpawnCard.luau` | Client | การ์ดรายการไอเทมสำหรับเสกให้ตัวเองหรือผู้เล่นเป้าหมาย พร้อมแจ้งเตือนและปิดปุ่มหากขาด Tool ใน `ServerStorage.AllItems` |
+
+### การตั้งค่าสิทธิ์และไอเทมสำหรับ AdminSystem
+- **`AdminConfig.AdminUserIds`**: เพิ่มรายชื่อแอดมินด้วย `UserId` (ตัวเลข) เช่น `[123456789] = true` ใน `src/shared/Modules/AdminConfig.luau` (ห้ามใช้ Username เพราะผู้เล่นเปลี่ยนชื่อได้)
+- **`AdminConfig.GroupConfig`**: กำหนด `GroupId > 0` และ `MinAdminRank` (ค่าเริ่มต้น `250`) เพื่ออนุญาตผู้ดูแลจากยศใน Roblox Group อัตโนมัติ (นอกจากนี้เจ้าของแมพจะได้รับสิทธิ์อัตโนมัติเมื่อ `AllowCreator = true`)
+- **`AdminConfig.AllowStudioAccess`**: ค่าเริ่มต้นคือ `true` เพื่อให้ทดสอบหน้าต่าง Admin ใน Roblox Studio ได้ทันทีโดยไม่ต้องเพิ่ม UserId
+- **`ServerStorage.AllItems`**: ไอเทมที่จะเสกผ่านแท็บ `Item Spawner` ต้องมีทั้งข้อมูลใน `ToolConfig.Items` และมีโมเดล `Tool` ชื่อตรงกันอยู่ใน `ServerStorage.AllItems` หากขาดตัวใด ระบบจะแจ้งเตือนใน Console ฝั่ง Server และขึ้นป้าย `[ขาด Tool ใน Studio]` บนการ์ดไอเทมให้ผู้ดูแลระบบเห็นทันที
+
+---
+
 ## 🤖 NPCService
 
 ```text
@@ -376,3 +403,13 @@ Namespace ที่ใช้งานอยู่:
   - `OpenPlantModal` — Server สั่งเปิดหน้าต่าง `PlantModal` (หรือทำทางลัดตาม Tool ที่ถืออยู่) เมื่อผู้เล่นกด `ProximityPrompt`
   - `PlantVisualEvent` *(Unreliable)* — ส่งสัญญาณเล่น VFX (`Plant`, `Water`, `Fertilize`, `Mature`, `Harvest`) ตามตำแหน่ง `WorldPos` บนฝั่ง Client
   - `NotifyToast` — ส่งข้อความแจ้งเตือนผลลัพธ์ของระบบเพาะปลูก (สำเร็จ/ผิดพลาด) ไปแสดงบน `ErrorToast`
+- **`AdminNetwork`**
+  - `RequestAccess` — Client ขอตรวจสอบสิทธิ์แอดมินและค่าความเร็วเดินเริ่มต้นจาก Server
+  - `SyncAccess` — Server ส่งสถานะสิทธิ์ (`IsAdmin`), ความเร็วเดินปัจจุบัน (`CurrentWalkSpeed`) และรายชื่อไอเทมที่ขาดใน Studio (`MissingStudioItems`, ส่ง `{}` ให้ผู้เล่นทั่วไป)
+  - `RequestPlayerList` — แอดมินขอรายชื่อผู้เล่นออนไลน์และประวัติ Audit Log ล่าสุด
+  - `SyncPlayerList` — Server ส่งรายชื่อผู้เล่น (`AdminPlayerSummaryStruct`) และประวัติคำสั่ง (`AdminAuditEntryStruct`) ให้แอดมิน
+  - `InspectPlayer` — แอดมินส่ง `TargetUserId` (`float64`) เพื่อขอดูรายละเอียดและไอเทมในกระเป๋าของผู้เล่นเป้าหมาย
+  - `SyncPlayerDetail` — Server ส่งข้อมูลเชิงลึกของผู้เล่นเป้าหมาย (`AdminPlayerDetailStruct` พร้อมรายการ `AdminStackItemStruct`)
+  - `GiveItem` — แอดมินส่งคำสั่งเสกไอเทม (`TargetUserId`, `ItemId`, `Amount`) ให้ตัวเองหรือผู้เล่นเป้าหมาย
+  - `SetSelfWalkSpeed` — แอดมินส่งคำสั่งปรับความเร็วเดินของตัวเอง (`WalkSpeed`, ช่วง 4–120)
+  - `NotifyToast` — Server ส่งข้อความแจ้งเตือนผลลัพธ์ (สำเร็จ/ผิดพลาด หรือแจ้งผู้รับไอเทม) ไปแสดงบน `ErrorToast`

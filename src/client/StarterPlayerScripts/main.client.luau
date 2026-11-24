@@ -7,6 +7,7 @@ require(script.Parent:WaitForChild("InventoryClient"))
 require(script.Parent:WaitForChild("PlotService"):WaitForChild("PlotController"))
 require(script.Parent:WaitForChild("PetService"):WaitForChild("PetController"))
 require(script.Parent:WaitForChild("PlantService"):WaitForChild("PlantController"))
+require(script.Parent:WaitForChild("AdminService"):WaitForChild("AdminController"))
 
 Knit.Start()
 	:andThen(function()

@@ -117,4 +117,57 @@ export type PlantToastInfo = {
 	Timestamp: number?,
 }
 
+export type AdminPlayerSummary = {
+	UserId: number,
+	Name: string,
+	DisplayName: string,
+	Level: number,
+	Cash: number,
+	WalkSpeed: number,
+}
+
+export type AdminStackItem = {
+	StackId: number,
+	ItemId: string,
+	DisplayName: string,
+	ItemType: string,
+	Count: number,
+	HotbarSlot: number,
+}
+
+export type AdminPlayerDetail = {
+	UserId: number,
+	Name: string,
+	DisplayName: string,
+	AccountAge: number,
+	Level: number,
+	CurrentExp: number,
+	ExpForNextLevel: number,
+	Cash: number,
+	LogInTimes: number,
+	WalkSpeed: number,
+	Health: number,
+	MaxHealth: number,
+	StackCount: number,
+	MaxStacks: number,
+	PetCount: number,
+	ActivePlanters: number,
+	PlotObjectCount: number,
+	Items: { AdminStackItem },
+}
+
+export type AdminAuditEntry = {
+	Timestamp: number,
+	AdminName: string,
+	Action: string,
+	TargetName: string,
+	Detail: string,
+}
+
+export type AdminToastInfo = {
+	IsError: boolean,
+	Message: string,
+	Timestamp: number?,
+}
+
 return Types

@@ -194,11 +194,112 @@ local PlantNetwork = ByteNet.defineNamespace("PlantNetwork", function()
 	}
 end)
 
+local AdminNetwork = ByteNet.defineNamespace("AdminNetwork", function()
+	local AdminPlayerSummaryStruct = ByteNet.struct({
+		UserId = ByteNet.float64,
+		Name = ByteNet.string,
+		DisplayName = ByteNet.string,
+		Level = ByteNet.uint16,
+		Cash = ByteNet.float64,
+		WalkSpeed = ByteNet.float32,
+	})
+
+	local AdminStackItemStruct = ByteNet.struct({
+		StackId = ByteNet.uint16,
+		ItemId = ByteNet.string,
+		DisplayName = ByteNet.string,
+		ItemType = ByteNet.string,
+		Count = ByteNet.uint16,
+		HotbarSlot = ByteNet.uint8,
+	})
+
+	local AdminPlayerDetailStruct = ByteNet.struct({
+		UserId = ByteNet.float64,
+		Name = ByteNet.string,
+		DisplayName = ByteNet.string,
+		AccountAge = ByteNet.uint32,
+		Level = ByteNet.uint16,
+		CurrentExp = ByteNet.float64,
+		ExpForNextLevel = ByteNet.float64,
+		Cash = ByteNet.float64,
+		LogInTimes = ByteNet.uint32,
+		WalkSpeed = ByteNet.float32,
+		Health = ByteNet.float32,
+		MaxHealth = ByteNet.float32,
+		StackCount = ByteNet.uint8,
+		MaxStacks = ByteNet.uint8,
+		PetCount = ByteNet.uint8,
+		ActivePlanters = ByteNet.uint8,
+		PlotObjectCount = ByteNet.uint16,
+		Items = ByteNet.array(AdminStackItemStruct),
+	})
+
+	local AdminAuditEntryStruct = ByteNet.struct({
+		Timestamp = ByteNet.uint32,
+		AdminName = ByteNet.string,
+		Action = ByteNet.string,
+		TargetName = ByteNet.string,
+		Detail = ByteNet.string,
+	})
+
+	return {
+		RequestAccess = ByteNet.definePacket({
+			value = ByteNet.nothing,
+		}),
+		SyncAccess = ByteNet.definePacket({
+			value = ByteNet.struct({
+				IsAdmin = ByteNet.bool,
+				CurrentWalkSpeed = ByteNet.float32,
+				MissingStudioItems = ByteNet.array(ByteNet.string),
+			}),
+		}),
+		RequestPlayerList = ByteNet.definePacket({
+			value = ByteNet.nothing,
+		}),
+		SyncPlayerList = ByteNet.definePacket({
+			value = ByteNet.struct({
+				Players = ByteNet.array(AdminPlayerSummaryStruct),
+				AuditLogs = ByteNet.array(AdminAuditEntryStruct),
+			}),
+		}),
+		InspectPlayer = ByteNet.definePacket({
+			value = ByteNet.struct({
+				TargetUserId = ByteNet.float64,
+			}),
+		}),
+		SyncPlayerDetail = ByteNet.definePacket({
+			value = ByteNet.struct({
+				Detail = AdminPlayerDetailStruct,
+			}),
+		}),
+		GiveItem = ByteNet.definePacket({
+			value = ByteNet.struct({
+				TargetUserId = ByteNet.float64,
+				ItemId = ByteNet.string,
+				Amount = ByteNet.uint16,
+			}),
+		}),
+		SetSelfWalkSpeed = ByteNet.definePacket({
+			value = ByteNet.struct({
+				WalkSpeed = ByteNet.float32,
+			}),
+		}),
+		NotifyToast = ByteNet.definePacket({
+			value = ByteNet.struct({
+				IsError = ByteNet.bool,
+				Message = ByteNet.string,
+			}),
+		}),
+	}
+end)
+
 return {
 	Pet = PetNetwork,
 	PetNetwork = PetNetwork,
 	Plant = PlantNetwork,
 	PlantNetwork = PlantNetwork,
+	Admin = AdminNetwork,
+	AdminNetwork = AdminNetwork,
 	Inventory = ByteNet.defineNamespace("InventoryNetwork", function()
 		local ClientStack = ByteNet.struct({
 			Name = ByteNet.string,

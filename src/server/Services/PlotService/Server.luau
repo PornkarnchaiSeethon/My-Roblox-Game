@@ -12,6 +12,35 @@ local PlotService = Knit.CreateService({
 	Client = {},
 })
 local actionCooldowns: { [Player]: { [string]: number } } = {}
+local characterConnections: { [Player]: RBXScriptConnection } = {}
+
+local function setupPlayerSpawnAtPlot(player: Player)
+	if characterConnections[player] then
+		characterConnections[player]:Disconnect()
+	end
+
+	characterConnections[player] = player.CharacterAdded:Connect(function(character)
+		-- Ensure character spawns on their assigned plot (handles initial join before RespawnLocation applies & any fallback)
+		task.defer(function()
+			local plot = PlotManager.getPlot(player)
+			if not plot then
+				return
+			end
+			local spawnCF = PlotManager.getPlotSpawnCFrame(player)
+			if not spawnCF then
+				return
+			end
+			local hrp = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 5)
+			if hrp and hrp:IsA("BasePart") then
+				-- Wait one physics step so Roblox default SpawnLocation placement cannot overwrite PivotTo
+				task.wait()
+				if character.Parent and (hrp.Position - spawnCF.Position).Magnitude > 12 then
+					PlotManager.teleportToPlot(player, character)
+				end
+			end
+		end)
+	end)
+end
 
 local function allowAction(player: Player, actionName: string, cooldown: number): boolean
 	local now = os.clock()
@@ -73,12 +102,21 @@ function PlotService:KnitStart()
 		PlotManager.delete(player, data.target)
 	end)
 
-	for _, player in Players:GetPlayers() do
+	local function onPlayerAdded(player: Player)
+		setupPlayerSpawnAtPlot(player)
 		task.spawn(PlotStorage.load, player)
 	end
-	Players.PlayerAdded:Connect(PlotStorage.load)
+
+	for _, player in Players:GetPlayers() do
+		onPlayerAdded(player)
+	end
+	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(function(player)
 		actionCooldowns[player] = nil
+		if characterConnections[player] then
+			characterConnections[player]:Disconnect()
+			characterConnections[player] = nil
+		end
 	end)
 
 	game:BindToClose(function()

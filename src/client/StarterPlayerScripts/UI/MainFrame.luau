@@ -13,6 +13,7 @@ local PetBarnFrame = require(script.Parent.PetBarnFrame)
 local IncubatorBreedingModal = require(script.Parent.IncubatorBreedingModal)
 local CropAlmanacFrame = require(script.Parent.CropAlmanacFrame)
 local PlantModal = require(script.Parent.PlantModal)
+local AdminPanelFrame = require(script.Parent.AdminPanelFrame)
 
 local e = React.createElement
 
@@ -80,15 +81,42 @@ export type PlantControllerLike = {
 	UprootPlant: (objectId: string) -> (),
 }
 
+export type AdminControllerLike = {
+	State: {
+		IsAdmin: boolean,
+		IsOpen: boolean,
+		ActiveTab: AdminPanelFrame.AdminTab,
+		PlayersList: { any },
+		SelectedUserId: number,
+		SelectedPlayerDetail: any?,
+		SelfWalkSpeed: number,
+		MissingStudioItems: { [string]: boolean },
+		AuditLogs: { any },
+		LastToast: { IsError: boolean, Message: string, Timestamp: number? }?,
+	},
+	Subscribe: (callback: () -> ()) -> (() -> ()),
+	TogglePanel: () -> (),
+	SetPanelOpen: (isOpen: boolean) -> (),
+	SetTab: (tab: AdminPanelFrame.AdminTab) -> (),
+	SelectAndInspectPlayer: (targetUserId: number) -> (),
+	RefreshPlayers: () -> (),
+	GiveItemToTarget: (targetUserId: number, itemId: string, amount: number) -> (),
+	GiveItemToSelf: (itemId: string, amount: number) -> (),
+	SetSelfWalkSpeed: (walkSpeed: number) -> (),
+	ClearToast: () -> (),
+}
+
 type Props = {
 	client: InventoryController?,
 	petClient: PetControllerLike?,
 	plantClient: PlantControllerLike?,
+	adminClient: AdminControllerLike?,
 }
 
 local runtimeClient: InventoryController? = nil
 local runtimePetClient: PetControllerLike? = nil
 local runtimePlantClient: PlantControllerLike? = nil
+local runtimeAdminClient: AdminControllerLike? = nil
 
 -- ดึง Client แบบไม่ Yield (ปลอดภัยสำหรับเรียกตอน Render)
 local function tryGetRuntimeClient(): InventoryController?
@@ -156,6 +184,28 @@ local function tryGetRuntimePlantClient(): PlantControllerLike?
 	return nil
 end
 
+local function tryGetRuntimeAdminClient(): AdminControllerLike?
+	if runtimeAdminClient then
+		return runtimeAdminClient
+	end
+
+	local player = Players.LocalPlayer
+	if not player then
+		return nil
+	end
+
+	local playerScripts = player:FindFirstChild("PlayerScripts")
+	local adminFolder = playerScripts and playerScripts:FindFirstChild("AdminService")
+	local targetModule = adminFolder and adminFolder:FindFirstChild("AdminController")
+	if targetModule and targetModule:IsA("ModuleScript") then
+		local loaded = (require :: any)(targetModule) :: AdminControllerLike
+		runtimeAdminClient = loaded
+		return loaded
+	end
+
+	return nil
+end
+
 local function MainFrame(props: Props?)
 	local client, setClient = React.useState(function(): InventoryController?
 		if props and props.client then
@@ -178,6 +228,13 @@ local function MainFrame(props: Props?)
 		return tryGetRuntimePlantClient()
 	end)
 
+	local adminClient, setAdminClient = React.useState(function(): AdminControllerLike?
+		if props and props.adminClient then
+			return props.adminClient
+		end
+		return tryGetRuntimeAdminClient()
+	end)
+
 	local inventoryOpen, setInventoryOpen = React.useState(if client then client.IsOpen else false)
 	local inventoryData, setInventoryData = React.useState(if client then client.Data else nil)
 	local selectedStackId, setSelectedStackId = React.useState(if client then client.SelectedStackId else nil)
@@ -185,6 +242,7 @@ local function MainFrame(props: Props?)
 
 	local _, setPetRevision = React.useState(0)
 	local _, setPlantRevision = React.useState(0)
+	local _, setAdminRevision = React.useState(0)
 
 	-- ถ้ารอบแรกยังหา InventoryClient ไม่เจอ ให้รอโหลดใน useEffect แทนการบล็อก Render
 	React.useEffect(function()
@@ -277,6 +335,36 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.plantClient })
 
+	-- รอโหลด AdminController แบบไม่บล็อก Render
+	React.useEffect(function()
+		if props and props.adminClient then
+			setAdminClient(props.adminClient)
+			return
+		end
+		if adminClient then
+			return
+		end
+
+		local thread = task.spawn(function()
+			local player = Players.LocalPlayer
+			if not player then
+				return
+			end
+			local playerScripts = player:WaitForChild("PlayerScripts")
+			local adminFolder = playerScripts:WaitForChild("AdminService")
+			local targetModule = adminFolder:WaitForChild("AdminController")
+			if targetModule:IsA("ModuleScript") then
+				local loaded = (require :: any)(targetModule) :: AdminControllerLike
+				runtimeAdminClient = loaded
+				setAdminClient(loaded)
+			end
+		end)
+
+		return function()
+			task.cancel(thread)
+		end
+	end, { props and props.adminClient })
+
 	-- Sync ข้อมูล Inventory และ Subscribe
 	React.useEffect(function()
 		if not client then
@@ -322,6 +410,43 @@ local function MainFrame(props: Props?)
 		end)
 	end, { plantClient })
 
+	-- Subscribe ข้อมูล Admin Panel จาก AdminController
+	React.useEffect(function()
+		if not adminClient then
+			return
+		end
+
+		return adminClient.Subscribe(function()
+			setAdminRevision(function(prev)
+				return prev + 1
+			end)
+		end)
+	end, { adminClient })
+
+	local adminState = if adminClient then adminClient.State else nil
+	local adminIsAdmin = if adminState then adminState.IsAdmin else false
+	local adminOpen = if adminState and adminIsAdmin then adminState.IsOpen else false
+	local adminToast = if adminState then adminState.LastToast else nil
+
+	-- ปิดหน้าต่างหลักอื่นอัตโนมัติเมื่อเปิด Admin Panel (รวมถึงการกดปุ่มลัด [M])
+	React.useEffect(function()
+		if not adminOpen then
+			return
+		end
+		if client and client.IsOpen then
+			setInventoryOpen(false)
+			client.SetWindowOpen(false)
+		end
+		if petClient then
+			petClient.SetBarnOpen(false)
+			petClient.CloseModal()
+		end
+		if plantClient then
+			plantClient.SetAlmanacOpen(false)
+			plantClient.CloseModal()
+		end
+	end, { adminOpen })
+
 	if not client then
 		return nil
 	end
@@ -352,12 +477,14 @@ local function MainFrame(props: Props?)
 		end
 	end
 
-	local toastMessage: string? = if plantToast
-		then plantToast.Message
+	local toastMessage: string? = if adminToast
+		then adminToast.Message
+		elseif plantToast then plantToast.Message
 		elseif petToast then petToast.Message
 		else lastError
-	local toastIsError: boolean = if plantToast
-		then plantToast.IsError
+	local toastIsError: boolean = if adminToast
+		then adminToast.IsError
+		elseif plantToast then plantToast.IsError
 		elseif petToast then petToast.IsError
 		else true
 
@@ -389,6 +516,9 @@ local function MainFrame(props: Props?)
 					if plantClient then
 						plantClient.SetAlmanacOpen(false)
 						plantClient.CloseModal()
+					end
+					if adminClient then
+						adminClient.SetPanelOpen(false)
 					end
 				end
 				setInventoryOpen(nextOpen)
@@ -428,6 +558,9 @@ local function MainFrame(props: Props?)
 						plantClient.SetAlmanacOpen(false)
 						plantClient.CloseModal()
 					end
+					if adminClient then
+						adminClient.SetPanelOpen(false)
+					end
 				end
 				petClient.ToggleBarn()
 			end,
@@ -465,6 +598,9 @@ local function MainFrame(props: Props?)
 						petClient.SetBarnOpen(false)
 						petClient.CloseModal()
 					end
+					if adminClient then
+						adminClient.SetPanelOpen(false)
+					end
 				end
 				plantClient.ToggleAlmanac()
 			end,
@@ -475,6 +611,47 @@ local function MainFrame(props: Props?)
 				Color = if plantAlmanacOpen
 					then Color3.fromRGB(250, 210, 110)
 					else Color3.fromRGB(62, 70, 92),
+			}),
+		}),
+
+		ToggleAdmin = (adminClient and adminState and adminState.IsAdmin) and e("TextButton", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 14, 0.46, 156),
+			Size = UDim2.fromOffset(118, 42),
+			BackgroundColor3 = if adminOpen
+				then Color3.fromRGB(185, 58, 86)
+				else Color3.fromRGB(28, 32, 44),
+			TextColor3 = Color3.fromRGB(245, 247, 255),
+			Text = if adminOpen then "Close [M]" else "Admin [M]",
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			TextWrapped = false,
+			AutoButtonColor = true,
+			ZIndex = 20,
+			[React.Event.Activated] = function()
+				if not adminOpen then
+					if inventoryOpen then
+						setInventoryOpen(false)
+						client.SetWindowOpen(false)
+					end
+					if petClient then
+						petClient.SetBarnOpen(false)
+						petClient.CloseModal()
+					end
+					if plantClient then
+						plantClient.SetAlmanacOpen(false)
+						plantClient.CloseModal()
+					end
+				end
+				adminClient.TogglePanel()
+			end,
+		}, {
+			Corner = e("UICorner", { CornerRadius = UDim.new(0, 10) }),
+			Stroke = e("UIStroke", {
+				Thickness = 1.5,
+				Color = if adminOpen
+					then Color3.fromRGB(245, 130, 155)
+					else Color3.fromRGB(125, 56, 74),
 			}),
 		}),
 
@@ -545,11 +722,31 @@ local function MainFrame(props: Props?)
 			OnUproot = plantClient.UprootPlant,
 			OnClose = plantClient.CloseModal,
 		}),
+		AdminPanel = (adminClient and adminState and adminState.IsAdmin and adminOpen) and e(AdminPanelFrame, {
+			ActiveTab = adminState.ActiveTab,
+			PlayersList = adminState.PlayersList,
+			SelectedUserId = adminState.SelectedUserId,
+			SelectedDetail = adminState.SelectedPlayerDetail,
+			SelfWalkSpeed = adminState.SelfWalkSpeed,
+			MissingStudioItems = adminState.MissingStudioItems,
+			AuditLogs = adminState.AuditLogs,
+			OnSelectTab = adminClient.SetTab,
+			OnSelectPlayer = adminClient.SelectAndInspectPlayer,
+			OnRefreshPlayers = adminClient.RefreshPlayers,
+			OnGiveItemToSelf = adminClient.GiveItemToSelf,
+			OnGiveItemToTarget = adminClient.GiveItemToTarget,
+			OnSetSelfWalkSpeed = adminClient.SetSelfWalkSpeed,
+			OnClose = function()
+				adminClient.SetPanelOpen(false)
+			end,
+		}),
 		Error = e(ErrorToast, {
 			message = toastMessage,
 			isError = toastIsError,
 			onDismiss = function()
-				if plantToast and plantClient then
+				if adminToast and adminClient then
+					adminClient.ClearToast()
+				elseif plantToast and plantClient then
 					plantClient.ClearToast()
 				elseif petToast and petClient then
 					petClient.ClearToast()

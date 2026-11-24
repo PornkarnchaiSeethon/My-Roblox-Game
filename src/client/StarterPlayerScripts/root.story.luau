@@ -7,6 +7,7 @@ local MainFrame = require(script.Parent.UI.MainFrame)
 local invListeners: { () -> () } = {}
 local petListeners: { () -> () } = {}
 local plantListeners: { () -> () } = {}
+local adminListeners: { () -> () } = {}
 
 local function notifyList(list: { () -> () })
 	for _, fn in list do
@@ -331,6 +332,223 @@ storyPlantClient = {
 	UprootPlant = function() end,
 }
 
+local storyAdminDetailsById = {
+	[1001] = {
+		UserId = 1001,
+		Name = "DevAdmin",
+		DisplayName = "DevAdmin",
+		AccountAge = 1240,
+		Level = 25,
+		CurrentExp = 1850,
+		ExpForNextLevel = 2500,
+		Cash = 48500,
+		LogInTimes = 64,
+		WalkSpeed = 16,
+		Health = 100,
+		MaxHealth = 100,
+		StackCount = 4,
+		MaxStacks = 30,
+		PetCount = 2,
+		ActivePlanters = 3,
+		PlotObjectCount = 12,
+		Items = {
+			{
+				StackId = 1,
+				ItemId = "normal_Sword",
+				DisplayName = "Normal Sword",
+				ItemType = "Weapon",
+				Count = 1,
+				HotbarSlot = 1,
+			},
+			{
+				StackId = 2,
+				ItemId = "watering_can",
+				DisplayName = "Watering Can",
+				ItemType = "Special",
+				Count = 1,
+				HotbarSlot = 2,
+			},
+			{
+				StackId = 3,
+				ItemId = "carrot_seed",
+				DisplayName = "Carrot Seed",
+				ItemType = "Resource",
+				Count = 8,
+				HotbarSlot = 3,
+			},
+			{
+				StackId = 4,
+				ItemId = "berry_feed",
+				DisplayName = "Berry Feed",
+				ItemType = "Consumable",
+				Count = 12,
+				HotbarSlot = 0,
+			},
+		},
+	},
+	[1002] = {
+		UserId = 1002,
+		Name = "FarmerBob",
+		DisplayName = "BobTheFarmer",
+		AccountAge = 320,
+		Level = 9,
+		CurrentExp = 420,
+		ExpForNextLevel = 900,
+		Cash = 3250,
+		LogInTimes = 15,
+		WalkSpeed = 16,
+		Health = 92,
+		MaxHealth = 100,
+		StackCount = 2,
+		MaxStacks = 30,
+		PetCount = 1,
+		ActivePlanters = 2,
+		PlotObjectCount = 7,
+		Items = {
+			{
+				StackId = 1,
+				ItemId = "berry_seed",
+				DisplayName = "Forest Berry Seed",
+				ItemType = "Resource",
+				Count = 5,
+				HotbarSlot = 1,
+			},
+			{
+				StackId = 2,
+				ItemId = "compost_fertilizer",
+				DisplayName = "Compost Fertilizer",
+				ItemType = "Consumable",
+				Count = 4,
+				HotbarSlot = 0,
+			},
+		},
+	},
+}
+
+local storyAdminClient
+storyAdminClient = {
+	State = {
+		IsAdmin = true,
+		IsOpen = false,
+		ActiveTab = "Players",
+		PlayersList = {
+			{
+				UserId = 1001,
+				Name = "DevAdmin",
+				DisplayName = "DevAdmin",
+				Level = 25,
+				Cash = 48500,
+				WalkSpeed = 16,
+			},
+			{
+				UserId = 1002,
+				Name = "FarmerBob",
+				DisplayName = "BobTheFarmer",
+				Level = 9,
+				Cash = 3250,
+				WalkSpeed = 16,
+			},
+		},
+		SelectedUserId = 1001,
+		SelectedPlayerDetail = storyAdminDetailsById[1001],
+		SelfWalkSpeed = 16,
+		MissingStudioItems = {},
+		AuditLogs = {
+			{
+				Timestamp = storyNow - 180,
+				AdminName = "DevAdmin",
+				Action = "GiveItem",
+				TargetName = "BobTheFarmer",
+				Detail = "เสก normal_Sword x1 สำเร็จ",
+			},
+			{
+				Timestamp = storyNow - 60,
+				AdminName = "DevAdmin",
+				Action = "SetSelfWalkSpeed",
+				TargetName = "DevAdmin",
+				Detail = "ปรับความเร็วเป็น 32",
+			},
+		},
+		LastToast = nil,
+	},
+	Subscribe = function(callback)
+		table.insert(adminListeners, callback)
+		return function()
+			local idx = table.find(adminListeners, callback)
+			if idx then
+				table.remove(adminListeners, idx)
+			end
+		end
+	end,
+	TogglePanel = function()
+		storyAdminClient.State.IsOpen = not storyAdminClient.State.IsOpen
+		notifyList(adminListeners)
+	end,
+	SetPanelOpen = function(isOpen)
+		storyAdminClient.State.IsOpen = isOpen
+		notifyList(adminListeners)
+	end,
+	SetTab = function(tab)
+		storyAdminClient.State.ActiveTab = tab
+		notifyList(adminListeners)
+	end,
+	SelectAndInspectPlayer = function(targetUserId)
+		storyAdminClient.State.SelectedUserId = targetUserId
+		storyAdminClient.State.SelectedPlayerDetail = storyAdminDetailsById[targetUserId]
+		notifyList(adminListeners)
+	end,
+	RefreshPlayers = function()
+		storyAdminClient.State.LastToast = {
+			IsError = false,
+			Message = "รีเฟรชรายชื่อผู้เล่นแล้ว (Story Mock)",
+			Timestamp = os.time(),
+		}
+		notifyList(adminListeners)
+	end,
+	GiveItemToTarget = function(targetUserId, itemId, amount)
+		local targetDetail = storyAdminDetailsById[targetUserId]
+		local targetName = if targetDetail then targetDetail.DisplayName else tostring(targetUserId)
+		table.insert(storyAdminClient.State.AuditLogs, 1, {
+			Timestamp = os.time(),
+			AdminName = "DevAdmin",
+			Action = "GiveItem",
+			TargetName = targetName,
+			Detail = `เสก {itemId} x{amount} ให้ {targetName}`,
+		})
+		storyAdminClient.State.LastToast = {
+			IsError = false,
+			Message = `เสก {itemId} x{amount} ให้ {targetName} สำเร็จ!`,
+			Timestamp = os.time(),
+		}
+		notifyList(adminListeners)
+	end,
+	GiveItemToSelf = function(itemId, amount)
+		storyAdminClient.GiveItemToTarget(1001, itemId, amount)
+	end,
+	SetSelfWalkSpeed = function(walkSpeed)
+		storyAdminClient.State.SelfWalkSpeed = walkSpeed
+		storyAdminClient.State.PlayersList[1].WalkSpeed = walkSpeed
+		storyAdminDetailsById[1001].WalkSpeed = walkSpeed
+		table.insert(storyAdminClient.State.AuditLogs, 1, {
+			Timestamp = os.time(),
+			AdminName = "DevAdmin",
+			Action = "SetSelfWalkSpeed",
+			TargetName = "DevAdmin",
+			Detail = `ปรับความเร็วเป็น {walkSpeed}`,
+		})
+		storyAdminClient.State.LastToast = {
+			IsError = false,
+			Message = `ปรับความเร็วเดินเป็น {walkSpeed} เรียบร้อยแล้ว`,
+			Timestamp = os.time(),
+		}
+		notifyList(adminListeners)
+	end,
+	ClearToast = function()
+		storyAdminClient.State.LastToast = nil
+		notifyList(adminListeners)
+	end,
+}
+
 return {
 	react = React,
 	reactRoblox = ReactRoblox,
@@ -340,6 +558,7 @@ return {
 			client = storyClient,
 			petClient = storyPetClient,
 			plantClient = storyPlantClient,
+			adminClient = storyAdminClient,
 		})
 	end,
 }

@@ -1,0 +1,31 @@
+--!strict
+
+local AdminConfig = {}
+
+-- อนุญาตให้เจ้าของแมพ (game.CreatorId) เข้าถึง Admin Panel อัตโนมัติ
+AdminConfig.AllowCreator = true
+
+-- อนุญาตให้เข้าถึง Admin Panel ได้เมื่อทดสอบใน Roblox Studio
+AdminConfig.AllowStudioAccess = true
+
+-- รายชื่อแอดมินเพิ่มเติม: ใช้ UserId (ตัวเลข) เท่านั้น ห้ามใช้ Username เพราะผู้เล่นสามารถเปลี่ยนชื่อได้
+-- ตัวอย่าง: [123456789] = true,
+AdminConfig.AdminUserIds = {} :: { [number]: boolean }
+
+-- ตั้งค่ากลุ่ม Roblox (กำหนด GroupId > 0 เพื่อเปิดใช้งานการตรวจสอบยศ)
+AdminConfig.GroupConfig = {
+	GroupId = 0,
+	MinAdminRank = 250,
+}
+
+-- ค่าความเร็วการเดิน (WalkSpeed)
+AdminConfig.DefaultWalkSpeed = 16
+AdminConfig.MinWalkSpeed = 4
+AdminConfig.MaxWalkSpeed = 120
+AdminConfig.SpeedPresets = { 16, 24, 32, 50, 80, 100 }
+
+-- ข้อจำกัดการเสกไอเทมและบันทึกประวัติการใช้งาน
+AdminConfig.MaxSpawnAmountPerAction = 99
+AdminConfig.MaxAuditLogEntries = 50
+
+return AdminConfig

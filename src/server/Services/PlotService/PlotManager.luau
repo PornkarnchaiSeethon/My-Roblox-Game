@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +12,7 @@ local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network")
 
 local PlotManager = {}
 local plots: { [number]: Model } = {}
+local plotPlayerSpawns: { [number]: SpawnLocation } = {}
 local deleteValidators: { (Player, Model) -> (boolean, string?) } = {}
 
 local function requiresInventoryItem(itemName: string): boolean
@@ -77,6 +79,87 @@ function PlotManager.setupObject(player: Player, objectModel: Model, savedObject
 	end)
 end
 
+local function createPlotPlayerSpawn(plot: Model, plotSpawn: BasePart): SpawnLocation
+	local existing = plot:FindFirstChild("PlotPlayerSpawn")
+	if existing and existing:IsA("SpawnLocation") then
+		existing:Destroy()
+	end
+
+	local primaryPart = plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart")
+	local plotCenter = if primaryPart then primaryPart.Position else plot:GetPivot().Position
+	local plotTopY = if primaryPart then (primaryPart.Position.Y + primaryPart.Size.Y * 0.5) else (plotCenter.Y + 0.5)
+
+	local spawnOffsetAttr = plotSpawn:GetAttribute("PlayerSpawnOffset")
+	local offset = if typeof(spawnOffsetAttr) == "Vector3" then spawnOffsetAttr else Vector3.zero
+	local spawnPos = Vector3.new(plotCenter.X + offset.X, plotTopY + 0.5, plotCenter.Z + offset.Z)
+	local lookTarget = Vector3.new(plotCenter.X, spawnPos.Y, plotCenter.Z)
+	local spawnCF = if (lookTarget - spawnPos).Magnitude > 0.5
+		then CFrame.lookAt(spawnPos, lookTarget)
+		else CFrame.new(spawnPos)
+
+	local spawnLoc = Instance.new("SpawnLocation")
+	spawnLoc.Name = "PlotPlayerSpawn"
+	spawnLoc.Size = Vector3.new(8, 1, 8)
+	spawnLoc.CFrame = spawnCF
+	spawnLoc.Anchored = true
+	spawnLoc.CanCollide = false
+	spawnLoc.Transparency = 1
+	spawnLoc.CastShadow = false
+	spawnLoc.Enabled = true
+	spawnLoc.Neutral = false
+	spawnLoc.AllowTeamChangeOnTouch = false
+	spawnLoc.Duration = 0
+	spawnLoc.TopSurface = Enum.SurfaceType.Smooth
+	spawnLoc.BottomSurface = Enum.SurfaceType.Smooth
+	for _, child in spawnLoc:GetChildren() do
+		if child:IsA("Decal") then
+			child:Destroy()
+		end
+	end
+	spawnLoc.Parent = plot
+
+	return spawnLoc
+end
+
+function PlotManager.getPlotSpawnCFrame(player: Player): CFrame?
+	local spawnLoc = plotPlayerSpawns[player.UserId]
+	if spawnLoc and spawnLoc.Parent then
+		return spawnLoc.CFrame * CFrame.new(0, 3.5, 0)
+	end
+
+	local plot = plots[player.UserId]
+	if not plot then
+		return nil
+	end
+
+	local primaryPart = plot.PrimaryPart or plot:FindFirstChildWhichIsA("BasePart")
+	if primaryPart then
+		return CFrame.new(primaryPart.Position + Vector3.new(0, primaryPart.Size.Y * 0.5 + 4, 0))
+	end
+	return plot:GetPivot() * CFrame.new(0, 4, 0)
+end
+
+function PlotManager.teleportToPlot(player: Player, characterOverride: Model?)
+	local spawnCF = PlotManager.getPlotSpawnCFrame(player)
+	if not spawnCF then
+		return
+	end
+
+	local character = characterOverride or player.Character
+	if not character then
+		return
+	end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 5)
+	if not hrp or not hrp:IsA("BasePart") or not character.Parent or not player:IsDescendantOf(Players) then
+		return
+	end
+
+	character:PivotTo(spawnCF)
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+end
+
 -- สร้าง Plot ประจำตัวผู้เล่น
 function PlotManager.spawnPlot(player: Player): Model
 	local existingPlot = plots[player.UserId]
@@ -106,9 +189,20 @@ function PlotManager.spawnPlot(player: Player): Model
 		plantsFolder.Parent = plot
 	end
 
+	local plotPlayerSpawn = createPlotPlayerSpawn(plot, plotSpawn)
 	plot.Parent = plotsFolder
 
 	plots[player.UserId] = plot
+	plotPlayerSpawns[player.UserId] = plotPlayerSpawn
+	player.RespawnLocation = plotPlayerSpawn
+
+	if player.Character then
+		task.spawn(function()
+			task.wait()
+			PlotManager.teleportToPlot(player, player.Character)
+		end)
+	end
+
 	return plot
 end
 
@@ -118,6 +212,11 @@ end
 
 -- ลบ Plot และคืนพื้นที่เมื่อผู้เล่นออก
 function PlotManager.removePlot(player: Player)
+	if player.RespawnLocation == plotPlayerSpawns[player.UserId] then
+		player.RespawnLocation = nil
+	end
+	plotPlayerSpawns[player.UserId] = nil
+
 	local plot = plots[player.UserId]
 	if plot then
 		plot:Destroy()
