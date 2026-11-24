@@ -7,6 +7,7 @@ local PlantConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("Plant
 local Components = script.Parent.Components
 local ErrorToast = require(Components.ErrorToast)
 local LevelBar = require(Components.LevelBar)
+local NPCBossBar = require(Components.NPCBossBar)
 local InventoryFrame = require(script.Parent.InventoryFrame)
 local HotbarSlot = require(script.Parent.HotbarSlot)
 local PetBarnFrame = require(script.Parent.PetBarnFrame)
@@ -14,6 +15,7 @@ local IncubatorBreedingModal = require(script.Parent.IncubatorBreedingModal)
 local CropAlmanacFrame = require(script.Parent.CropAlmanacFrame)
 local PlantModal = require(script.Parent.PlantModal)
 local AdminPanelFrame = require(script.Parent.AdminPanelFrame)
+local NPCDialogueModal = require(script.Parent.NPCDialogueModal)
 
 local e = React.createElement
 
@@ -106,17 +108,34 @@ export type AdminControllerLike = {
 	ClearToast: () -> (),
 }
 
+export type NPCControllerLike = {
+	State: {
+		ActiveBosses: { any },
+		ActiveDialogue: any?,
+		LastToast: { IsError: boolean, Message: string, Timestamp: number? }?,
+	},
+	Subscribe: (callback: () -> ()) -> (() -> ()),
+	SubscribeBosses: ((callback: () -> ()) -> (() -> ()))?,
+	SubscribeDialogue: ((callback: () -> ()) -> (() -> ()))?,
+	SubscribeToast: ((callback: () -> ()) -> (() -> ()))?,
+	CloseDialogue: () -> (),
+	ClearToast: () -> (),
+	GetNearbyBoss: () -> any?,
+}
+
 type Props = {
 	client: InventoryController?,
 	petClient: PetControllerLike?,
 	plantClient: PlantControllerLike?,
 	adminClient: AdminControllerLike?,
+	npcClient: NPCControllerLike?,
 }
 
 local runtimeClient: InventoryController? = nil
 local runtimePetClient: PetControllerLike? = nil
 local runtimePlantClient: PlantControllerLike? = nil
 local runtimeAdminClient: AdminControllerLike? = nil
+local runtimeNPCClient: NPCControllerLike? = nil
 
 -- ดึง Client แบบไม่ Yield (ปลอดภัยสำหรับเรียกตอน Render)
 local function tryGetRuntimeClient(): InventoryController?
@@ -206,6 +225,28 @@ local function tryGetRuntimeAdminClient(): AdminControllerLike?
 	return nil
 end
 
+local function tryGetRuntimeNPCClient(): NPCControllerLike?
+	if runtimeNPCClient then
+		return runtimeNPCClient
+	end
+
+	local player = Players.LocalPlayer
+	if not player then
+		return nil
+	end
+
+	local playerScripts = player:FindFirstChild("PlayerScripts")
+	local npcFolder = playerScripts and playerScripts:FindFirstChild("NPCService")
+	local targetModule = npcFolder and npcFolder:FindFirstChild("NPCController")
+	if targetModule and targetModule:IsA("ModuleScript") then
+		local loaded = (require :: any)(targetModule) :: NPCControllerLike
+		runtimeNPCClient = loaded
+		return loaded
+	end
+
+	return nil
+end
+
 local function MainFrame(props: Props?)
 	local client, setClient = React.useState(function(): InventoryController?
 		if props and props.client then
@@ -235,6 +276,13 @@ local function MainFrame(props: Props?)
 		return tryGetRuntimeAdminClient()
 	end)
 
+	local npcClient, setNpcClient = React.useState(function(): NPCControllerLike?
+		if props and props.npcClient then
+			return props.npcClient
+		end
+		return tryGetRuntimeNPCClient()
+	end)
+
 	local inventoryOpen, setInventoryOpen = React.useState(if client then client.IsOpen else false)
 	local inventoryData, setInventoryData = React.useState(if client then client.Data else nil)
 	local selectedStackId, setSelectedStackId = React.useState(if client then client.SelectedStackId else nil)
@@ -243,6 +291,7 @@ local function MainFrame(props: Props?)
 	local _, setPetRevision = React.useState(0)
 	local _, setPlantRevision = React.useState(0)
 	local _, setAdminRevision = React.useState(0)
+	local npcToast, setNpcToast = React.useState(if npcClient and npcClient.State then npcClient.State.LastToast else nil)
 
 	-- ถ้ารอบแรกยังหา InventoryClient ไม่เจอ ให้รอโหลดใน useEffect แทนการบล็อก Render
 	React.useEffect(function()
@@ -365,6 +414,36 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.adminClient })
 
+	-- รอโหลด NPCController แบบไม่บล็อก Render
+	React.useEffect(function()
+		if props and props.npcClient then
+			setNpcClient(props.npcClient)
+			return
+		end
+		if npcClient then
+			return
+		end
+
+		local thread = task.spawn(function()
+			local player = Players.LocalPlayer
+			if not player then
+				return
+			end
+			local playerScripts = player:WaitForChild("PlayerScripts")
+			local npcFolder = playerScripts:WaitForChild("NPCService")
+			local targetModule = npcFolder:WaitForChild("NPCController")
+			if targetModule:IsA("ModuleScript") then
+				local loaded = (require :: any)(targetModule) :: NPCControllerLike
+				runtimeNPCClient = loaded
+				setNpcClient(loaded)
+			end
+		end)
+
+		return function()
+			task.cancel(thread)
+		end
+	end, { props and props.npcClient })
+
 	-- Sync ข้อมูล Inventory และ Subscribe
 	React.useEffect(function()
 		if not client then
@@ -423,10 +502,30 @@ local function MainFrame(props: Props?)
 		end)
 	end, { adminClient })
 
+	-- Subscribe เฉพาะ Toast จาก NPCController (Boss/Dialogue จัดการในคอมโพเนนต์ลูกเพื่อลดการ Re-render)
+	React.useEffect(function()
+		if not npcClient then
+			setNpcToast(nil)
+			return
+		end
+
+		setNpcToast(npcClient.State.LastToast)
+		local sub = npcClient.SubscribeToast or npcClient.Subscribe
+		return sub(function()
+			setNpcToast(npcClient.State.LastToast)
+		end)
+	end, { npcClient })
+
 	local adminState = if adminClient then adminClient.State else nil
 	local adminIsAdmin = if adminState then adminState.IsAdmin else false
 	local adminOpen = if adminState and adminIsAdmin then adminState.IsOpen else false
 	local adminToast = if adminState then adminState.LastToast else nil
+
+	local handleCloseAdminPanel = React.useCallback(function()
+		if adminClient then
+			adminClient.SetPanelOpen(false)
+		end
+	end, { adminClient })
 
 	-- ปิดหน้าต่างหลักอื่นอัตโนมัติเมื่อเปิด Admin Panel (รวมถึงการกดปุ่มลัด [M])
 	React.useEffect(function()
@@ -444,6 +543,9 @@ local function MainFrame(props: Props?)
 		if plantClient then
 			plantClient.SetAlmanacOpen(false)
 			plantClient.CloseModal()
+		end
+		if npcClient then
+			npcClient.CloseDialogue()
 		end
 	end, { adminOpen })
 
@@ -479,11 +581,13 @@ local function MainFrame(props: Props?)
 
 	local toastMessage: string? = if adminToast
 		then adminToast.Message
+		elseif npcToast then npcToast.Message
 		elseif plantToast then plantToast.Message
 		elseif petToast then petToast.Message
 		else lastError
 	local toastIsError: boolean = if adminToast
 		then adminToast.IsError
+		elseif npcToast then npcToast.IsError
 		elseif plantToast then plantToast.IsError
 		elseif petToast then petToast.IsError
 		else true
@@ -656,6 +760,9 @@ local function MainFrame(props: Props?)
 		}),
 
 		LevelBar = e(LevelBar),
+		NPCBossBar = npcClient and e(NPCBossBar, {
+			npcClient = npcClient,
+		}),
 		HotbarSlot = e(HotbarSlot, {
 			data = inventoryData,
 			onHold = client.HoldItem,
@@ -736,9 +843,10 @@ local function MainFrame(props: Props?)
 			OnGiveItemToSelf = adminClient.GiveItemToSelf,
 			OnGiveItemToTarget = adminClient.GiveItemToTarget,
 			OnSetSelfWalkSpeed = adminClient.SetSelfWalkSpeed,
-			OnClose = function()
-				adminClient.SetPanelOpen(false)
-			end,
+			OnClose = handleCloseAdminPanel,
+		}),
+		NPCDialogue = npcClient and e(NPCDialogueModal, {
+			npcClient = npcClient,
 		}),
 		Error = e(ErrorToast, {
 			message = toastMessage,
@@ -746,6 +854,8 @@ local function MainFrame(props: Props?)
 			onDismiss = function()
 				if adminToast and adminClient then
 					adminClient.ClearToast()
+				elseif npcToast and npcClient then
+					npcClient.ClearToast()
 				elseif plantToast and plantClient then
 					plantClient.ClearToast()
 				elseif petToast and petClient then

@@ -33,6 +33,8 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 | `G` | Plot Placement | เปิด / ปิดระบบ Snap to Grid (ขนาด 2 Studs) |
 | `Left Click` | Plot Placement | ยืนยันการวางสิ่งของลงใน Plot |
 | `X` | Plot Placement | ลบสิ่งของที่ชี้เมาส์อยู่ใน Plot (และคืนไอเทมเข้ากระเป๋า) |
+| `Left Click` / `Tap` | NPC Combat | โจมตี NPC ศัตรูด้วยอาวุธที่ถืออยู่ |
+| `E` | NPC Dialogue | พูดคุยกับ NPC เมือง เช่น ผู้เฒ่าโรแวน |
 
 ---
 
@@ -143,7 +145,7 @@ src/server/ServerLoader.server.luau
 | PetService | `PetService/Server.luau` | `"PetService"` | จัดการสัตว์เลี้ยงใน Plot, ให้อาหาร/วิวัฒนาการ, ฟักไข่/ผสมพันธุ์ และผู้ช่วยต่อสู้ (`Client:GetPetsState`) |
 | PlantService | `PlantService/Server.luau` | `"PlantService"` | จัดการระบบเพาะปลูกใน Plot (ปลูกเมล็ด, รดน้ำ, ใส่ปุ๋ย, สปริงเกลอร์, เก็บเกี่ยว, Offline Catch-up) ผ่าน `PlantNetwork` |
 | AdminService | `AdminService/Server.luau` | `"AdminService"` | ตรวจสอบสิทธิ์ผู้ดูแลระบบแบบ Server-Authoritative, ตรวจสอบข้อมูลผู้เล่น, เสกไอเทม, ปรับความเร็วเดิน และบันทึก Audit Log ผ่าน `AdminNetwork` |
-| NPCService | `NPCService/` | — | `AnimController` สำหรับเล่นแอนิเมชัน Rig และ `EnemyController` สำหรับค้นหาเป้าหมายและรับดาเมจจากสัตว์เลี้ยง |
+| NPCService | `NPCService/Server.luau` | `"NPCService"` | จัดการจุดเกิด NPC (`NPCSpawnManager`), `AnimController`, ระบบ AI/ต่อสู้ (`EnemyController`), สกิลและ Telegraph (`NPCSkillManager`) ผ่าน `NPCNetwork` |
 
 ---
 
@@ -202,7 +204,8 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 - มี API สำหรับเชื่อมต่อกับระบบอื่น:
   - `HasItem(player, itemName): boolean` — ตรวจสอบว่าผู้เล่นมีไอเทมหรือไม่
   - `ConsumeItem(player, itemName): boolean` — หักไอเทมออกจากกระเป๋า 1 ชิ้น
-  - `GiveItem(player, itemName): boolean` — สร้างไอเทมจาก `ServerStorage.AllItems` เข้ากระเป๋าผู้เล่น
+  - `GiveItem(player, itemName): boolean` — สร้างไอเทมจาก `ServerStorage.AllItems` เข้ากระเป๋าผู้เล่น 1 ชิ้น
+  - `GiveItems(player, itemName, amount): number` — สร้างไอเทมแบบ Batch หลายชิ้นในครั้งเดียว (หน่วง `InventoryNetwork.Update` ผ่าน `BatchUpdating` แล้วส่งซิงก์ทีเดียวเมื่อเสร็จ เพื่อลด Network Spike) และคืนจำนวนชิ้นที่เสกสำเร็จจริง
 
 ### ฝั่ง Client (`src/client/StarterPlayerScripts/InventoryClient.luau`)
 - สร้างเป็น Knit Controller ชื่อ `"InventoryClient"` (`Knit.CreateController`) และเริ่มต้นทำงานผ่าน `Knit.Start()` ใน `main.client.luau`
@@ -215,14 +218,15 @@ DataService ใช้ ProfileService และเปิด ProfileStore ชื�
 ```text
 src/client/StarterPlayerScripts/UI/
 ├── App.luau                      -- สร้าง ScreenGui และ Mount React Root
-├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ InventoryClient, PetController, PlantController และ AdminController เข้ากับ UI
+├── MainFrame.luau                -- หน้าจอหลัก เชื่อมต่อ Controller ต่างๆ (ใช้ `SubscribeToast` เฉพาะ Toast เพื่อลด Re-render; Boss/Dialogue แยก Subscribe ในคอมโพเนนต์ลูก)
 ├── InventoryFrame.luau           -- หน้าต่างกระเป๋าหลัก (Header, TabBar, ItemGrid, DetailPanel)
 ├── HotbarSlot.luau               -- แถบ Hotbar 10 ช่องด้านล่างหน้าจอ
 ├── PetBarnFrame.luau             -- หน้าต่างจัดการสัตว์เลี้ยง (ให้อาหาร, วิวัฒนาการ, จัดทีมต่อสู้)
 ├── IncubatorBreedingModal.luau   -- หน้าต่างเครื่องฟักไข่และคอกผสมพันธุ์พร้อมนับเวลาถอยหลัง
 ├── CropAlmanacFrame.luau         -- หน้าต่าง Farm & Almanac (ดูแปลงผักที่กำลังโต รดน้ำ/เก็บเกี่ยว และสมุดบันทึกพืช)
 ├── PlantModal.luau               -- หน้าต่างจัดการกระบะปลูก (เลือกเมล็ด, รดน้ำ, ใส่ปุ๋ย, เก็บเกี่ยว, ถอนต้นไม้)
-├── AdminPanelFrame.luau          -- หน้าต่าง Admin Control Panel (แท็บ Players, Item Spawner, Self Speed และ Audit Log)
+├── AdminPanelFrame.luau          -- หน้าต่าง Admin Control Panel แบบ `React.memo` (Mount เฉพาะแท็บที่เปิดใช้งานอยู่)
+├── NPCDialogueModal.luau         -- หน้าต่างบทสนทนา NPC เมืองแบบแบ่งหน้า (Pagination) (Subscribe ผ่าน `SubscribeDialogue` ในตัว)
 └── Components/
     ├── TabBar.luau               -- แถบเลือกหมวดหมู่ไอเทม (All, Tools, Resources, Weapons, Misc)
     ├── ItemGrid.luau             -- ตารางแสดงรายการไอเทมตามหมวดหมู่ที่เลือก
@@ -231,6 +235,12 @@ src/client/StarterPlayerScripts/UI/
     ├── PetCard.luau              -- การ์ดแสดงสัตว์เลี้ยง (ระดับความหายาก, Stage, เลเวล, หลอดอาหาร)
     ├── CropCard.luau             -- การ์ดแสดงข้อมูลพืช (ระดับความหายาก, เวลาโต, ผลผลิต, จำนวนเมล็ด/สถิติเก็บเกี่ยว)
     ├── AdminItemSpawnCard.luau   -- การ์ดเสกไอเทมในหน้า Admin Spawner (เสกให้ตัวเอง/เป้าหมาย พร้อมเตือนเมื่อขาด Tool ใน Studio)
+    ├── Admin/                    -- คอมโพเนนต์แท็บย่อยของ Admin Panel (ห่อด้วย `React.memo` ทุกแท็บ)
+    │   ├── AdminPlayersTab.luau  -- แท็บ Players: รายชื่อผู้เล่นออนไลน์, ข้อมูลเชิงลึก และรายการไอเทมในกระเป๋า
+    │   ├── AdminSpawnerTab.luau  -- แท็บ Item Spawner: ค้นหา/กรองหมวดหมู่, เลือกจำนวน และเสกไอเทมผ่าน `AdminItemSpawnCard`
+    │   ├── AdminSelfSpeedTab.luau -- แท็บ Self Speed: ปุ่ม Preset และช่องกรอกความเร็วเดินเองพร้อมตรวจ `NaN`/`inf`
+    │   └── AdminAuditLogTab.luau -- แท็บ Audit Log: แสดงประวัติคำสั่ง Admin (รวม Critical + General Buffer)
+    ├── NPCBossBar.luau           -- แถบพลังชีวิตบอสและสถานะการร่ายสกิลด้านบนหน้าจอ (Subscribe ผ่าน `SubscribeBosses` ในตัว)
     ├── ErrorToast.luau           -- กล่องแจ้งเตือนสถานะ (แดง/เขียว ปิดตัวเองอัตโนมัติใน 3 วินาที)
     └── LevelBar.luau             -- แถบแสดงระดับเลเวลและค่าประสบการณ์ (EXP)
 ```
@@ -268,16 +278,21 @@ ServerStorage
                             • PlantSystem (12 ชิ้น): wooden_planter, fertile_garden_bed, hydro_sprinkler, watering_can,
                               compost_fertilizer, mystic_fertilizer, carrot_seed, berry_seed, moon_herb_seed,
                               golden_apple_seed, fresh_carrot, moon_herb
+                            • NPCSystem (3 ชิ้น): iron_sword, slime_gel, wolf_fang (หากขาดใน Studio ระบบ `ensureFallbackAllItemsTools` จะสร้าง Placeholder Tool ให้ใน `ServerStorage.AllItems` อัตโนมัติตอน `KnitInit`)
 
-Workspace
+Workspace                   -- ตั้งค่า `"$ignoreUnknownInstances": true` ใน `default.project.json` เพื่อไม่ให้ Rojo ลบโฟลเดอร์ที่สร้างตอน Runtime/ใน Studio
 ├── Plots                -- Folder เปล่าสำหรับเก็บ Plot ของผู้เล่นที่ถูกสร้างขึ้น
 ├── PlotSpawns           -- Folder ที่มี BasePart เป็นจุดเกิดของแต่ละ Plot
-└── Enemies              -- (ทางเลือก) Folder เก็บ Model ศัตรูสำหรับให้สัตว์เลี้ยงช่วยโจมตี
+├── NPCSpawns            -- (ทางเลือก) Folder เก็บจุดเกิด NPC พร้อม Attribute (NPCId, SpawnZoneId, SpawnRadius, PatrolRadius, MaxConcurrent, RespawnDelay)
+├── NPCs                 -- Folder สำหรับเก็บ Logical Root ของ NPC เมืองที่เป็นมิตร (สร้างอัตโนมัติเมื่อ Server เริ่มทำงาน)
+├── Enemies              -- Folder เก็บ Logical Root ของศัตรูและบอสสำหรับให้ผู้เล่นและสัตว์เลี้ยงต่อสู้
+└── NPCVisuals           -- Folder ฝั่ง Client สำหรับเก็บ Visual Rig 3D ที่ Render แบบ Smooth Interpolation (`RunService.RenderStepped`)
 
 ReplicatedStorage
 ├── PlaceableObjects     -- Folder ที่มี Model ของสิ่งของที่วางใน Plot ได้ (รวม pet_incubator, breeding_pen, wooden_planter, fertile_garden_bed, hydro_sprinkler)
 ├── PetModels            -- (ทางเลือก) Folder เก็บ Model 3D ของสัตว์เลี้ยงแต่ละ Stage (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
-└── PlantModels          -- (ทางเลือก) Folder เก็บ Model 3D ของพืชแต่ละ Stage เช่น carrot_seed_Mature (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
+├── PlantModels          -- (ทางเลือก) Folder เก็บ Model 3D ของพืชแต่ละ Stage เช่น carrot_seed_Mature (หากไม่มี ระบบจะสร้าง Placeholder ให้อัตโนมัติ)
+└── NPCModels            -- (ทางเลือก) Folder เก็บ Model 3D ของ NPC ตาม NPCId (หากไม่มี ระบบจะสร้าง Placeholder Rig ให้อัตโนมัติ)
 ```
 
 ---
@@ -332,32 +347,59 @@ ReplicatedStorage
 
 | ไฟล์ | ฝั่ง | หน้าที่ |
 | --- | --- | --- |
-| `shared/Modules/AdminConfig.luau` | Shared | ตั้งค่าสิทธิ์แอดมิน (`AllowCreator`, `AllowStudioAccess`, `AdminUserIds`, `GroupConfig`), ช่วงความเร็วเดิน (`MinWalkSpeed = 4`, `MaxWalkSpeed = 120`, `SpeedPresets`), จำนวนเสกสูงสุดต่อครั้ง (`99`) และขนาด Audit Log (`50`) |
+| `shared/Modules/AdminConfig.luau` | Shared | ตั้งค่าสิทธิ์แอดมิน (`AllowCreator`, `AllowStudioAccess`, `AuthCacheTTLSeconds = 90`, `StudioNonAdminTestUserIds`, `AdminUserIds`, `GroupConfig`), โหมดสร้าง Dummy Tool ใน Studio (`AutoCreateStudioDummyTools`), ช่วงความเร็วเดิน (`MinWalkSpeed = 4`, `MaxWalkSpeed = 120`, `SpeedPresets`), จำนวนเสกสูงสุดต่อครั้ง (`99`) และขนาด Audit Log (`MaxAuditLogEntries = 50`, `MaxCriticalAuditLogEntries = 50`) |
 | `shared/Modules/Types.luau` | Shared | ประกาศชนิดข้อมูล `AdminPlayerSummary`, `AdminStackItem`, `AdminPlayerDetail`, `AdminAuditEntry`, `AdminToastInfo` |
-| `server/Services/AdminService/Server.luau` | Server | Knit Service (`"AdminService"`) รับคำสั่ง `AdminNetwork`, ตรวจสิทธิ์ทุก Packet, Rate Limiting (Read + Token Bucket สำหรับ Mutation), Action Lock และคงค่า WalkSpeed เมื่อตัวละครเกิดใหม่ |
-| `server/Services/AdminService/AdminAuthManager.luau` | Server | ตรวจสอบสิทธิ์แอดมิน (Studio, Creator, `AdminUserIds`, Group Rank) พร้อม Cache และล้างเมื่อผู้เล่นออก |
-| `server/Services/AdminService/AdminActionExecutor.luau` | Server | สร้างสรุป/รายละเอียดผู้เล่น, เสกไอเทมผ่าน `InventoryService.GiveItem`, ปรับ WalkSpeed, ตรวจสอบไอเทมที่ขาดใน `ServerStorage.AllItems` และบันทึก Audit Log |
-| `client/StarterPlayerScripts/AdminService/AdminController.luau` | Client | Knit Controller (`"AdminController"`) เก็บ State แบบ Observer, ซิงก์สิทธิ์จาก Server และผูกปุ่มลัด `M` (เฉพาะผู้ดูแลระบบ) |
-| `client/StarterPlayerScripts/UI/AdminPanelFrame.luau` | Client | หน้าต่าง `ADMIN CONTROL PANEL [M]` ประกอบด้วย 4 แท็บ: `Players` (ตรวจข้อมูล/กระเป๋าผู้เล่น), `Item Spawner` (ค้นหา/กรองหมวดหมู่และเสกไอเทม), `Self Speed` (Preset/กำหนดเอง) และ `Audit Log` |
+| `server/Services/AdminService/Server.luau` | Server | Knit Service (`"AdminService"`) รับคำสั่ง `AdminNetwork`, ตรวจสิทธิ์พร้อม Live Revocation (`verifyAdminAccess`) ทุก Packet, Rate Limiting (`READ_RATE_LIMIT = 0.40s` ต่อ Action + Token Bucket สำหรับ Mutation), Action Lock, แยกส่ง `SyncAuditLogs` แบบ On-Demand และคงค่า `BaseWalkSpeed` (คำนวณร่วมกับ `ActiveSlowMultiplier`) เมื่อตัวละครเกิดใหม่ |
+| `server/Services/AdminService/AdminAuthManager.luau` | Server | ตรวจสอบสิทธิ์แอดมิน (Studio พร้อมข้อยกเว้น `StudioNonAdminTestUserIds`, Creator, `AdminUserIds`, Group Rank) พร้อม Cache แบบมี TTL (`AuthCacheTTLSeconds`) และล้างเมื่อผู้เล่นออก |
+| `server/Services/AdminService/AdminActionExecutor.luau` | Server | สร้างสรุป/รายละเอียดผู้เล่น, เสกไอเทมแบบ Batch ผ่าน `InventoryService.GiveItems`, ปรับความเร็วผ่าน `BaseWalkSpeed` ร่วมกับ `ActiveSlowMultiplier` (ล้าง Override เมื่อรีเซ็ตเป็นค่าเริ่มต้น), สร้าง Dummy Tool ใน Studio เมื่อเปิดใช้งาน, ตรวจสอบไอเทมที่ขาดใน `ServerStorage.AllItems` และบันทึก Audit Log แยก Ring Buffer (Critical vs General) พร้อม Log ออก Server Console (`warn`/`print`) |
+| `client/StarterPlayerScripts/AdminService/AdminController.luau` | Client | Knit Controller (`"AdminController"`) เก็บ State แบบ Observer, ซิงก์สิทธิ์/ล้าง State ทันทีเมื่อถูกถอดสิทธิ์, โหลด `AuditLogs` แบบ On-Demand เมื่อเปิดแท็บ `AuditLog` และผูกปุ่มลัด `M` (เฉพาะผู้ดูแลระบบ) |
+| `client/StarterPlayerScripts/UI/AdminPanelFrame.luau` | Client | หน้าต่าง Shell `ADMIN CONTROL PANEL [M]` (`React.memo`) ที่ Mount เฉพาะแท็บที่ใช้งานอยู่ (`AdminPlayersTab`, `AdminSpawnerTab`, `AdminSelfSpeedTab`, `AdminAuditLogTab`) |
+| `client/StarterPlayerScripts/UI/Components/Admin/*.luau` | Client | แท็บย่อยทั้ง 4 แท็บที่ห่อด้วย `React.memo` (`AdminPlayersTab`, `AdminSpawnerTab`, `AdminSelfSpeedTab`, `AdminAuditLogTab`) ลดการ Re-render ข้ามแท็บ |
 | `client/StarterPlayerScripts/UI/Components/AdminItemSpawnCard.luau` | Client | การ์ดรายการไอเทมสำหรับเสกให้ตัวเองหรือผู้เล่นเป้าหมาย พร้อมแจ้งเตือนและปิดปุ่มหากขาด Tool ใน `ServerStorage.AllItems` |
 
 ### การตั้งค่าสิทธิ์และไอเทมสำหรับ AdminSystem
 - **`AdminConfig.AdminUserIds`**: เพิ่มรายชื่อแอดมินด้วย `UserId` (ตัวเลข) เช่น `[123456789] = true` ใน `src/shared/Modules/AdminConfig.luau` (ห้ามใช้ Username เพราะผู้เล่นเปลี่ยนชื่อได้)
-- **`AdminConfig.GroupConfig`**: กำหนด `GroupId > 0` และ `MinAdminRank` (ค่าเริ่มต้น `250`) เพื่ออนุญาตผู้ดูแลจากยศใน Roblox Group อัตโนมัติ (นอกจากนี้เจ้าของแมพจะได้รับสิทธิ์อัตโนมัติเมื่อ `AllowCreator = true`)
-- **`AdminConfig.AllowStudioAccess`**: ค่าเริ่มต้นคือ `true` เพื่อให้ทดสอบหน้าต่าง Admin ใน Roblox Studio ได้ทันทีโดยไม่ต้องเพิ่ม UserId
-- **`ServerStorage.AllItems`**: ไอเทมที่จะเสกผ่านแท็บ `Item Spawner` ต้องมีทั้งข้อมูลใน `ToolConfig.Items` และมีโมเดล `Tool` ชื่อตรงกันอยู่ใน `ServerStorage.AllItems` หากขาดตัวใด ระบบจะแจ้งเตือนใน Console ฝั่ง Server และขึ้นป้าย `[ขาด Tool ใน Studio]` บนการ์ดไอเทมให้ผู้ดูแลระบบเห็นทันที
+- **`AdminConfig.GroupConfig` & `AuthCacheTTLSeconds`**: กำหนด `GroupId > 0` และ `MinAdminRank` (ค่าเริ่มต้น `250`) เพื่ออนุญาตผู้ดูแลจากยศใน Roblox Group อัตโนมัติ โดย Cache สิทธิ์จะมีอายุตาม `AuthCacheTTLSeconds` (ค่าเริ่มต้น `90` วินาที) ทำให้การถอดยศกลุ่มมีผลระหว่างเซสชันทันที (`verifyAdminAccess` จะตัดสิทธิ์และปิดหน้าต่างฝั่ง Client อัตโนมัติ)
+- **`AdminConfig.AllowStudioAccess` & `StudioNonAdminTestUserIds`**: ค่าเริ่มต้น `AllowStudioAccess = true` เพื่อให้ทดสอบหน้าต่าง Admin ใน Roblox Studio ได้ทันที และสามารถระบุ `StudioNonAdminTestUserIds = { [-2] = true }` เพื่อยกเว้นผู้เล่นทดสอบบางรายใน Studio Local Server (เช่น Player2) สำหรับทดสอบ QA สิทธิ์ผู้เล่นทั่วไป
+- **`AdminConfig.AutoCreateStudioDummyTools` & `ServerStorage.AllItems`**: ไอเทมที่จะเสกผ่านแท็บ `Item Spawner` ต้องมีทั้งข้อมูลใน `ToolConfig.Items` และมีโมเดล `Tool` ชื่อตรงกันอยู่ใน `ServerStorage.AllItems` หากขาดตัวใด ระบบจะแจ้งเตือนใน Console ฝั่ง Server และขึ้นป้าย `[ขาด Tool ใน Studio]` บนการ์ดไอเทม หรือหากตั้ง `AutoCreateStudioDummyTools = true` (ทำงานเฉพาะใน Roblox Studio) ระบบจะสร้าง Placeholder Tool ให้ใน `ServerStorage.AllItems` อัตโนมัติโดยไม่เขียนทับของเดิม
+- **Audit Log แบบแยก Ring Buffer (`MaxCriticalAuditLogEntries` / `MaxAuditLogEntries`)**: แยกเก็บประวัติคำสั่งที่มีผลต่อเศรษฐกิจ (`GiveItem`, `SelfGiveItem`) ไว้ใน Critical Buffer (`50` รายการ พร้อม `warn` ออก Server Console) แยกจาก General Buffer (`50` รายการ พร้อม `print` ออก Console) เพื่อป้องกันไม่ให้การกดปรับความเร็วรัวๆ ดันประวัติการเสกไอเทมหายไปจากระบบ
 
 ---
 
-## 🤖 NPCService
+## 🤖 NPCService (ระบบ NPC เมือง มอนสเตอร์ บอส และสกิล)
 
-```text
-src/server/Services/NPCService/AnimController.luau
-src/server/Services/NPCService/EnemyController.luau
-```
+ระบบ NPC ทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`NPCNetwork`)**, **DataService**, **InventoryService**, **ToolConfig** และ **PetService**:
 
-- `AnimController` รองรับการโหลดและเล่น `AnimationTrack` ผ่าน `AnimationController > Animator` หรือ `Humanoid > Animator`
-- `EnemyController` ค้นหาศัตรูใกล้เคียง (`GetNearestEnemy`) จากโฟลเดอร์ `Workspace.Enemies` / CollectionService tag `"Enemy"` และคำนวณความเสียหายจากสัตว์เลี้ยง (`ApplyPetDamage`) พร้อมมอบค่า EXP ให้ผู้เล่นเมื่อกำจัดศัตรูสำเร็จ
+| ไฟล์ | ฝั่ง | หน้าที่ |
+| --- | --- | --- |
+| `shared/Modules/NPCConfig.luau` | Shared | กำหนดค่า NPC (`moss_slime`, `feral_wolf`, `ancient_stone_golem`, `elder_rowan`), สกิล (`slime_acid_splash`, `wolf_feral_lunge`, `golem_earth_slam`, `golem_stone_mend`), จุดเกิดเริ่มต้น (`DefaultSpawnZones`), ค่าคงที่ (`AITickInterval = 0.15`, `BossBarMaxDistance = 95`, `BossSyncRadius = 140`, `RewardMaxDistance = 160`, `MinContributionRatio = 0.03`, `AttackJitterAllowance = 0.06`, `PlotSafeMarginStuds = 8`) และ `WeaponStats` |
+| `shared/Modules/AnimController.luau` | Shared | โมดูลกลางจัดการ `AnimationTrack` v2 (`ResolveAnimator`, `LoadTrack`, `PlayState`, `StopAll`, `CleanupRig`) ใช้งานได้ทั้งฝั่ง Server และ Client พร้อมคง Legacy API (`LoadAnimation`, `Play`, `Stop`, `ClearRig`) |
+| `server/Services/NPCService/Server.luau` | Server | Knit Service (`"NPCService"`) สร้าง Placeholder Tool fallback (`ensureFallbackAllItemsTools`) ตอน `KnitInit`, รับคำสั่ง `NPCNetwork`, ตรวจ Sliding-Window Cooldown/Anti-Exploit, รันลูป AI ทุก `0.15s` และซิงก์บอสระยะ `140` Studs แบบ Dirty-Checked ทุก `0.45s` |
+| `server/Services/NPCService/NPCSpawnManager.luau` | Server | ค้นหาจุดเกิด, สุ่มตำแหน่งบนพื้นนอกเขต Plot, สร้าง Logical Root ล่องหน (`IsLogicalRoot = true`, `Transparency = 1`, `CanCollide = false`, `CanQuery = true`, `CanTouch = false`) และจัดการ Respawn |
+| `server/Services/NPCService/NPCSkillManager.luau` | Server | เลือกและร่ายสกิลตามเงื่อนไข HP% / ระยะ / Cooldown, ส่ง Telegraph เตือนบนพื้น, ตรวจโดนแบบ `Circle` / `Box`, พุ่งตัว, ฟื้นฟู HP และจัดการดีบัฟ `Slow` แบบ Multi-source (`BaseWalkSpeed` + `ActiveSlowMultiplier`) |
+| `server/Services/NPCService/EnemyController.luau` | Server | ควบคุม AI State Machine (`Idle`, `Patrol`, `Chase`, `Attack`, `SkillWindup`, `SkillCast`, `ReturnToSpawn`, `Dead`), Leash/Reset พร้อมล้าง `Contributors`, แจกรางวัลตามเกณฑ์ขั้นต่ำ (`3%` / `160` Studs) และรองรับ `PetService` |
+| `server/Services/NPCService/AnimController.luau` | Server | Thin Re-export Wrapper ชี้ไปยัง `shared/Modules/AnimController.luau` เพื่อความเข้ากันได้ย้อนหลังกับ `PetService` และสคริปต์ฝั่ง Server |
+| `client/StarterPlayerScripts/NPCService/NPCController.luau` | Client | Knit Controller (`"NPCController"`) แยก Subscribes (`SubscribeBosses`, `SubscribeDialogue`, `SubscribeToast`) และผูกคลิกซ้าย/แตะเพื่อโจมตีด้วยอาวุธที่ถือ |
+| `client/StarterPlayerScripts/NPCService/NPCVisualRenderer.luau` | Client | สร้าง Visual Rig 3D ใน `Workspace.NPCVisuals` (ปิด Collision/Query/Touch ทั้งหมด), อินเทอร์โพลเลตตำแหน่ง 60 FPS ด้วย `RunService.RenderStepped` + Procedural Animation, วาด `BillboardGui`, Telegraph, ตัวเลขลอย และ Burst VFX |
+| `client/StarterPlayerScripts/UI/Components/NPCBossBar.luau` | Client | Subscribe ผ่าน `SubscribeBosses` ภายในคอมโพเนนต์ แสดงแถบ HP บอสและชื่อสกิลที่กำลังร่ายในระยะ `BossBarMaxDistance` (`95` Studs) |
+| `client/StarterPlayerScripts/UI/NPCDialogueModal.luau` | Client | Subscribe ผ่าน `SubscribeDialogue` ภายในคอมโพเนนต์ แสดงหน้าต่างบทสนทนาของ NPC เมืองแบบแบ่งหน้า (`Pagination`) พร้อมปุ่มปิด |
+
+### Spawn Zones, Logical Root และ Client Visual Rig Architecture
+- `NPCSpawnManager.DiscoverZones()` ค้นหาจุดเกิดจากโฟลเดอร์ `Workspace.NPCSpawns` และ `CollectionService` Tag `"NPCSpawnPoint"` ที่มี Attribute `NPCId` (และเลือกกำหนด `SpawnZoneId`, `SpawnRadius`, `PatrolRadius`, `MaxConcurrent`, `RespawnDelay` ได้) หากไม่พบจุดเกิดที่ตั้งไว้ใน Studio ระบบจะ Fallback ไปใช้ `NPCConfig.DefaultSpawnZones` อัตโนมัติ และตั้งค่า `Workspace` `"$ignoreUnknownInstances": true` ใน `default.project.json` เพื่อรักษา Instance ที่เพิ่มใน Studio/Runtime
+- ทุกตำแหน่งเกิดและเส้นทางเดินจะถูกตรวจผ่าน `NPCSpawnManager.IsInsideAnyPlayerPlot()` (เผื่อระยะปลอดภัย `PlotSafeMarginStuds = 8`) เพื่อไม่ให้มอนสเตอร์เกิดหรือเดินบุกเข้าพื้นที่ Plot ของผู้เล่น
+- **Server Logical Root vs. Client Visual Rig:** ฝั่ง Server สร้างเฉพาะ Root Part ล่องหน (`IsLogicalRoot = true`, `Transparency = 1`, `CanCollide = false`, `CanQuery = true`, `CanTouch = false`) ใน `Workspace.Enemies` / `Workspace.NPCs` ส่วนฝั่ง Client (`NPCVisualRenderer`) จะสร้าง Visual Rig จริงจาก `ReplicatedStorage.NPCModels` (หรือ Placeholder Rig พร้อม Procedural Animation) ไว้ใน `Workspace.NPCVisuals` แล้วอัปเดตตำแหน่งแบบ Smooth Lerp ที่ 60 FPS ผ่าน `RunService.RenderStepped` โดยทุกชิ้นส่วน Visual / Telegraph / VFX / ตัวเลขลอยถูกปิด `CanCollide = false`, `CanTouch = false`, `CanQuery = false`
+- **Placeholder Tool Fallback:** ใน `NPCService:KnitInit()` มี `ensureFallbackAllItemsTools()` คอยตรวจสอบและสร้าง `Tool` ชั่วคราว (`iron_sword`, `slime_gel`, `wolf_fang`) ใน `ServerStorage.AllItems` อัตโนมัติหากยังไม่มีโมเดลใน Studio
+
+### `AnimController` v2 (Shared) และความเข้ากันได้กับ `PetService`
+- **Shared Module (`src/shared/Modules/AnimController.luau`) + Server Wrapper:** ย้ายแกนหลักของ `AnimController` มาไว้ที่ Shared เพื่อให้ทั้ง `NPCVisualRenderer` ฝั่ง Client และระบบฝั่ง Server ใช้งานร่วมกันได้ โดยคง `src/server/Services/NPCService/AnimController.luau` เป็น Thin Re-export Wrapper เพื่อความเข้ากันได้ย้อนหลังกับ `PetService`
+- **API v2 (`AnimController`):** `ResolveAnimator`, `LoadTrack`, `PlayState` (รองรับ Priority ตาม State, `ActionLockedUntil`, `HitFrame` marker และอัปเดต Attribute `AnimState`), `StopAll` และ `CleanupRig` (ล้างเมื่อโมเดลถูกทำลาย)
+- **Legacy API (`PetService` Compatibility):** คงฟังก์ชัน `LoadAnimation`, `Play`, `Stop` และ `ClearRig` ใน `AnimController` รวมถึง `EnemyController.GetNearestEnemy` และ `EnemyController.ApplyPetDamage` เพื่อให้ `PetCombatController` และ `PetPlotBrain` ทำงานร่วมกับมอนสเตอร์ใหม่ได้ทันที
+
+### ระบบ Skill, Multi-Source Slow, Reward Eligibility และ Anti-Exploit
+- **AI State & Leash Reset:** ใช้ AI State มาตรฐาน `"ReturnToSpawn"` เมื่อศัตรูออกนอก `LeashDistance` โดยล้างตาราง `Contributors` ทันทีและฟื้นฟู HP เต็มเมื่อกลับถึงจุดเกิด
+- **Skill, Telegraph & Slow Sync:** ก่อนออกสกิล `NPCSkillManager` จะส่ง `NPCTelegraphEvent` ไปยัง Client เพื่อวาดวงเตือนสีบนพื้น (`Circle` หรือ `Box`) ตาม `WindupTime` จากนั้นจึงตรวจเป้าหมายในรัศมีจริงฝั่ง Server และจัดการดีบัฟ `Slow` แบบ Multi-source (`activeSlowMultipliers` + `BaseWalkSpeed` + `ActiveSlowMultiplier`) ที่ซิงก์กับ `AdminService` อย่างปลอดภัยเมื่อหมดเวลา, เปลี่ยนความเร็วแอดมิน หรือผู้เล่นตาย
+- **Anti-Exploit & Reward Eligibility:** `NPCService/Server.luau` ตรวจสอบความถูกต้องของ `NPCUID` (`isValidNPCUID`), สถานะมีชีวิตของผู้เล่น, Sliding-Window Cooldown (`nextAttackTimestamp` พร้อมเผื่อ `AttackJitterAllowance = 0.06s`), ระยะโจมตี/ระยะโต้ตอบ (`DefaultInteractDistance`), และ Raycast Line-of-Sight; การแจกรางวัลจะมอบเฉพาะผู้เล่นที่ทำความเสียหายอย่างน้อย `3%` ของ MaxHP (`MinContributionRatio = 0.03`) และอยู่ในระยะไม่เกิน `160` Studs (`RewardMaxDistance = 160`)
+- **Boss Sync & UI Performance:** ฝั่ง Server กรองและซิงก์บอส (`SyncBosses`) เฉพาะบอสที่อยู่ในระยะ `BossSyncRadius = 140` Studs พร้อม Dirty-Checking เพื่อลด Traffic; ฝั่ง Client แยก `SubscribeBosses`, `SubscribeDialogue` และ `SubscribeToast` เพื่อไม่ให้ `MainFrame.luau` Re-render ทั้งหน้าเมื่อหลอดเลือดบอสหรือบทสนทนาอัปเดต
 
 ---
 
@@ -406,10 +448,20 @@ Namespace ที่ใช้งานอยู่:
 - **`AdminNetwork`**
   - `RequestAccess` — Client ขอตรวจสอบสิทธิ์แอดมินและค่าความเร็วเดินเริ่มต้นจาก Server
   - `SyncAccess` — Server ส่งสถานะสิทธิ์ (`IsAdmin`), ความเร็วเดินปัจจุบัน (`CurrentWalkSpeed`) และรายชื่อไอเทมที่ขาดใน Studio (`MissingStudioItems`, ส่ง `{}` ให้ผู้เล่นทั่วไป)
-  - `RequestPlayerList` — แอดมินขอรายชื่อผู้เล่นออนไลน์และประวัติ Audit Log ล่าสุด
-  - `SyncPlayerList` — Server ส่งรายชื่อผู้เล่น (`AdminPlayerSummaryStruct`) และประวัติคำสั่ง (`AdminAuditEntryStruct`) ให้แอดมิน
+  - `RequestPlayerList` — แอดมินขอรายชื่อผู้เล่นออนไลน์
+  - `SyncPlayerList` — Server ส่งรายชื่อผู้เล่นออนไลน์ (`Players`: `AdminPlayerSummaryStruct`) ให้แอดมิน
+  - `RequestAuditLogs` — แอดมินขอประวัติ Audit Log แบบ On-Demand (เมื่อเปิดแท็บ `AuditLog` หรือกด Refresh ในแท็บดังกล่าว)
+  - `SyncAuditLogs` — Server ส่งประวัติคำสั่งแอดมิน (`AuditLogs`: `AdminAuditEntryStruct` รวม Critical + General Buffer) ให้แอดมิน
   - `InspectPlayer` — แอดมินส่ง `TargetUserId` (`float64`) เพื่อขอดูรายละเอียดและไอเทมในกระเป๋าของผู้เล่นเป้าหมาย
   - `SyncPlayerDetail` — Server ส่งข้อมูลเชิงลึกของผู้เล่นเป้าหมาย (`AdminPlayerDetailStruct` พร้อมรายการ `AdminStackItemStruct`)
   - `GiveItem` — แอดมินส่งคำสั่งเสกไอเทม (`TargetUserId`, `ItemId`, `Amount`) ให้ตัวเองหรือผู้เล่นเป้าหมาย
   - `SetSelfWalkSpeed` — แอดมินส่งคำสั่งปรับความเร็วเดินของตัวเอง (`WalkSpeed`, ช่วง 4–120)
   - `NotifyToast` — Server ส่งข้อความแจ้งเตือนผลลัพธ์ (สำเร็จ/ผิดพลาด หรือแจ้งผู้รับไอเทม) ไปแสดงบน `ErrorToast`
+- **`NPCNetwork`**
+  - `PlayerAttackNPC` — Client ส่ง `NPCUID` เพื่อขอโจมตี NPC ศัตรูด้วยอาวุธที่ถืออยู่ (Server ตรวจ Cooldown, ระยะ และ Line-of-Sight)
+  - `InteractNPC` — Client ส่ง `NPCUID` เพื่อขอพูดคุยกับ NPC เมือง
+  - `OpenNPCDialogue` — Server ส่งข้อมูลบทสนทนา (`NPCUID`, `DisplayName`, `Lines`) ให้ Client เปิด `NPCDialogueModal`
+  - `SyncBosses` — Server ซิงก์รายการบอสที่ยังมีชีวิตในระยะ `BossSyncRadius` (`140` Studs) แบบ Dirty-Checked (`NPCBossSummaryStruct`: `NPCUID`, `DisplayName`, `Level`, `HP`, `MaxHP`, `CastingSkillName`) ให้ Client แสดงบน `NPCBossBar`
+  - `NPCTelegraphEvent` *(Unreliable)* — Server ส่งข้อมูลวงเตือนสกิล (`NPCUID`, `SkillId`, `Shape`, `Origin`, `LookVector`, `Radius`, `BoxSize`, `Duration`) ไปวาดบนพื้นฝั่ง Client
+  - `NPCVisualEvent` *(Unreliable)* — Server ส่งสัญญาณเล่น VFX และตัวเลขความเสียหาย/ฮีล (`Damage`, `Heal`, `SkillImpact`, `BasicAttack`, `Spawn`, `Death`)
+  - `NotifyToast` — Server ส่งข้อความแจ้งเตือนรางวัลการปราบมอนสเตอร์/บอส หรือข้อความสถานะไปแสดงบน `ErrorToast`

@@ -8,6 +8,10 @@ local invListeners: { () -> () } = {}
 local petListeners: { () -> () } = {}
 local plantListeners: { () -> () } = {}
 local adminListeners: { () -> () } = {}
+local npcListeners: { () -> () } = {}
+local npcBossListeners: { () -> () } = {}
+local npcDialogueListeners: { () -> () } = {}
+local npcToastListeners: { () -> () } = {}
 
 local function notifyList(list: { () -> () })
 	for _, fn in list do
@@ -508,13 +512,15 @@ storyAdminClient = {
 	GiveItemToTarget = function(targetUserId, itemId, amount)
 		local targetDetail = storyAdminDetailsById[targetUserId]
 		local targetName = if targetDetail then targetDetail.DisplayName else tostring(targetUserId)
-		table.insert(storyAdminClient.State.AuditLogs, 1, {
+		local nextLogs = table.clone(storyAdminClient.State.AuditLogs)
+		table.insert(nextLogs, 1, {
 			Timestamp = os.time(),
 			AdminName = "DevAdmin",
 			Action = "GiveItem",
 			TargetName = targetName,
 			Detail = `เสก {itemId} x{amount} ให้ {targetName}`,
 		})
+		storyAdminClient.State.AuditLogs = nextLogs
 		storyAdminClient.State.LastToast = {
 			IsError = false,
 			Message = `เสก {itemId} x{amount} ให้ {targetName} สำเร็จ!`,
@@ -527,15 +533,28 @@ storyAdminClient = {
 	end,
 	SetSelfWalkSpeed = function(walkSpeed)
 		storyAdminClient.State.SelfWalkSpeed = walkSpeed
-		storyAdminClient.State.PlayersList[1].WalkSpeed = walkSpeed
-		storyAdminDetailsById[1001].WalkSpeed = walkSpeed
-		table.insert(storyAdminClient.State.AuditLogs, 1, {
+		local nextPlayers = table.clone(storyAdminClient.State.PlayersList)
+		local updatedSelfSummary = table.clone(nextPlayers[1])
+		updatedSelfSummary.WalkSpeed = walkSpeed
+		nextPlayers[1] = updatedSelfSummary
+		storyAdminClient.State.PlayersList = nextPlayers
+
+		local updatedSelfDetail = table.clone(storyAdminDetailsById[1001])
+		updatedSelfDetail.WalkSpeed = walkSpeed
+		storyAdminDetailsById[1001] = updatedSelfDetail
+		if storyAdminClient.State.SelectedUserId == 1001 then
+			storyAdminClient.State.SelectedPlayerDetail = updatedSelfDetail
+		end
+
+		local nextLogs = table.clone(storyAdminClient.State.AuditLogs)
+		table.insert(nextLogs, 1, {
 			Timestamp = os.time(),
 			AdminName = "DevAdmin",
 			Action = "SetSelfWalkSpeed",
 			TargetName = "DevAdmin",
 			Detail = `ปรับความเร็วเป็น {walkSpeed}`,
 		})
+		storyAdminClient.State.AuditLogs = nextLogs
 		storyAdminClient.State.LastToast = {
 			IsError = false,
 			Message = `ปรับความเร็วเดินเป็น {walkSpeed} เรียบร้อยแล้ว`,
@@ -549,6 +568,80 @@ storyAdminClient = {
 	end,
 }
 
+local storyNPCClient
+storyNPCClient = {
+	State = {
+		ActiveBosses = {
+			{
+				NPCUID = "boss_story_1",
+				DisplayName = "Ancient Forest Golem [BOSS]",
+				Level = 12,
+				HP = 840,
+				MaxHP = 1250,
+				CastingSkillName = "พสุธากัมปนาท (Earthshatter Slam)",
+			},
+		},
+		ActiveDialogue = {
+			NPCUID = "npc_story_1",
+			DisplayName = "ผู้เฒ่าโรแวน (Elder Rowan)",
+			Lines = {
+				"ยินดีต้อนรับสู่ดินแดนฟาร์มและผจญภัย! คุณสามารถปลูกพืชใน Plot [H] และฟักไข่สัตว์เลี้ยง [P] เพื่อสร้างทีมต่อสู้ได้",
+				"ระวังวงเตือนสีแดงบนพื้นเมื่อต่อสู้กับมอนสเตอร์ป่าและ Ancient Forest Golem เพราะสกิลของพวกมันรุนแรงมาก!",
+			},
+		},
+		LastToast = nil,
+	},
+	Subscribe = function(callback)
+		table.insert(npcListeners, callback)
+		return function()
+			local idx = table.find(npcListeners, callback)
+			if idx then
+				table.remove(npcListeners, idx)
+			end
+		end
+	end,
+	SubscribeBosses = function(callback)
+		table.insert(npcBossListeners, callback)
+		return function()
+			local idx = table.find(npcBossListeners, callback)
+			if idx then
+				table.remove(npcBossListeners, idx)
+			end
+		end
+	end,
+	SubscribeDialogue = function(callback)
+		table.insert(npcDialogueListeners, callback)
+		return function()
+			local idx = table.find(npcDialogueListeners, callback)
+			if idx then
+				table.remove(npcDialogueListeners, idx)
+			end
+		end
+	end,
+	SubscribeToast = function(callback)
+		table.insert(npcToastListeners, callback)
+		return function()
+			local idx = table.find(npcToastListeners, callback)
+			if idx then
+				table.remove(npcToastListeners, idx)
+			end
+		end
+	end,
+	CloseDialogue = function()
+		storyNPCClient.State.ActiveDialogue = nil
+		notifyList(npcDialogueListeners)
+		notifyList(npcListeners)
+	end,
+	ClearToast = function()
+		storyNPCClient.State.LastToast = nil
+		notifyList(npcToastListeners)
+		notifyList(npcListeners)
+	end,
+	GetNearbyBoss = function()
+		return storyNPCClient.State.ActiveBosses[1]
+	end,
+}
+
 return {
 	react = React,
 	reactRoblox = ReactRoblox,
@@ -559,6 +652,7 @@ return {
 			petClient = storyPetClient,
 			plantClient = storyPlantClient,
 			adminClient = storyAdminClient,
+			npcClient = storyNPCClient,
 		})
 	end,
 }

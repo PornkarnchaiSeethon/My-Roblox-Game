@@ -1,6 +1,7 @@
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Knit = require(ReplicatedStorage.Packages:WaitForChild("knit"))
 local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network"))
@@ -23,7 +24,7 @@ type MutationBucket = {
 	LastRefill: number,
 }
 
-local READ_RATE_LIMIT = 0.10
+local READ_RATE_LIMIT = 0.40
 local BUCKET_CAPACITY = 6
 local BUCKET_REFILL_PER_SEC = 3
 
@@ -110,7 +111,13 @@ function AdminService:BindCharacterSpeedPersistence(player: Player)
 		if humanoid and humanoid:IsA("Humanoid") and player:IsDescendantOf(Players) then
 			local latestSpeed = customWalkSpeeds[player]
 			if latestSpeed ~= nil then
-				humanoid.WalkSpeed = latestSpeed
+				character:SetAttribute("BaseWalkSpeed", latestSpeed)
+				local activeSlowMult = character:GetAttribute("ActiveSlowMultiplier")
+				if type(activeSlowMult) == "number" and activeSlowMult > 0 and activeSlowMult < 1 then
+					humanoid.WalkSpeed = math.max(2, latestSpeed * activeSlowMult)
+				else
+					humanoid.WalkSpeed = latestSpeed
+				end
 			end
 		end
 	end
@@ -147,20 +154,51 @@ end
 function AdminService:SendPlayerListToAdmin(adminPlayer: Player)
 	Network.AdminNetwork.SyncPlayerList.sendTo({
 		Players = self:BuildAllPlayerSummaries(),
-		AuditLogs = AdminActionExecutor.GetAuditLogs(),
 	}, adminPlayer)
 end
 
 function AdminService:BroadcastPlayerListToAdmins()
 	local payload = {
 		Players = self:BuildAllPlayerSummaries(),
-		AuditLogs = AdminActionExecutor.GetAuditLogs(),
 	}
 	for _, player in Players:GetPlayers() do
 		if AdminAuthManager.IsAdmin(player) then
 			Network.AdminNetwork.SyncPlayerList.sendTo(payload, player)
 		end
 	end
+end
+
+function AdminService:SendAuditLogsToAdmin(adminPlayer: Player)
+	Network.AdminNetwork.SyncAuditLogs.sendTo({
+		AuditLogs = AdminActionExecutor.GetAuditLogs(),
+	}, adminPlayer)
+end
+
+function AdminService:BroadcastAuditLogsToAdmins()
+	local payload = {
+		AuditLogs = AdminActionExecutor.GetAuditLogs(),
+	}
+	for _, player in Players:GetPlayers() do
+		if AdminAuthManager.IsAdmin(player) then
+			Network.AdminNetwork.SyncAuditLogs.sendTo(payload, player)
+		end
+	end
+end
+
+local function verifyAdminAccess(player: Player, actionName: string): boolean
+	if AdminAuthManager.IsAdmin(player) then
+		return true
+	end
+	warn("[AdminService] Unauthorized " .. actionName .. " from", player.Name, player.UserId)
+	customWalkSpeeds[player] = nil
+	if boundSpeedConns[player] then
+		boundSpeedConns[player]:Disconnect()
+		boundSpeedConns[player] = nil
+	end
+	if player:IsDescendantOf(Players) then
+		AdminService:SendAccessToPlayer(player, false)
+	end
+	return false
 end
 
 function AdminService:SendPlayerDetailToAdmin(adminPlayer: Player, targetPlayer: Player): boolean
@@ -189,6 +227,13 @@ function AdminService:KnitInit()
 end
 
 function AdminService:KnitStart()
+	if RunService:IsStudio() and AdminConfig.AutoCreateStudioDummyTools == true then
+		local createdCount = AdminActionExecutor.EnsureStudioDummyTools()
+		if createdCount > 0 then
+			print("[AdminService] Created", createdCount, "Studio dummy Tool template(s) in ServerStorage.AllItems")
+		end
+	end
+
 	local missingItems = AdminActionExecutor.GetMissingStudioItems()
 	if #missingItems > 0 then
 		warn("[AdminService] Missing Tool templates in ServerStorage.AllItems:", table.concat(missingItems, ", "))
@@ -220,6 +265,12 @@ function AdminService:KnitStart()
 		end
 		if isAdmin then
 			self:BindCharacterSpeedPersistence(player)
+		else
+			customWalkSpeeds[player] = nil
+			if boundSpeedConns[player] then
+				boundSpeedConns[player]:Disconnect()
+				boundSpeedConns[player] = nil
+			end
 		end
 		self:SendAccessToPlayer(player, isAdmin)
 		if isAdmin then
@@ -228,8 +279,7 @@ function AdminService:KnitStart()
 	end)
 
 	Network.AdminNetwork.RequestPlayerList.listen(function(_, player)
-		if not AdminAuthManager.IsAdmin(player) then
-			warn("[AdminService] Unauthorized RequestPlayerList from", player.Name, player.UserId)
+		if not verifyAdminAccess(player, "RequestPlayerList") then
 			return
 		end
 		if not checkReadRateLimit(player, "RequestPlayerList") then
@@ -238,9 +288,18 @@ function AdminService:KnitStart()
 		self:SendPlayerListToAdmin(player)
 	end)
 
+	Network.AdminNetwork.RequestAuditLogs.listen(function(_, player)
+		if not verifyAdminAccess(player, "RequestAuditLogs") then
+			return
+		end
+		if not checkReadRateLimit(player, "RequestAuditLogs") then
+			return
+		end
+		self:SendAuditLogsToAdmin(player)
+	end)
+
 	Network.AdminNetwork.InspectPlayer.listen(function(data, player)
-		if not AdminAuthManager.IsAdmin(player) then
-			warn("[AdminService] Unauthorized InspectPlayer from", player.Name, player.UserId)
+		if not verifyAdminAccess(player, "InspectPlayer") then
 			return
 		end
 		if not checkReadRateLimit(player, "InspectPlayer") then
@@ -274,8 +333,7 @@ function AdminService:KnitStart()
 	end)
 
 	Network.AdminNetwork.GiveItem.listen(function(data, player)
-		if not AdminAuthManager.IsAdmin(player) then
-			warn("[AdminService] Unauthorized GiveItem from", player.Name, player.UserId)
+		if not verifyAdminAccess(player, "GiveItem") then
 			return
 		end
 		if not consumeMutationToken(player) then
@@ -316,12 +374,14 @@ function AdminService:KnitStart()
 				self:SendPlayerDetailToAdmin(player, targetPlayer)
 			end
 			self:BroadcastPlayerListToAdmins()
+			if ok then
+				self:BroadcastAuditLogsToAdmins()
+			end
 		end)
 	end)
 
 	Network.AdminNetwork.SetSelfWalkSpeed.listen(function(data, player)
-		if not AdminAuthManager.IsAdmin(player) then
-			warn("[AdminService] Unauthorized SetSelfWalkSpeed from", player.Name, player.UserId)
+		if not verifyAdminAccess(player, "SetSelfWalkSpeed") then
 			return
 		end
 		if not consumeMutationToken(player) then
@@ -346,6 +406,7 @@ function AdminService:KnitStart()
 				self:SendAccessToPlayer(player, true)
 				self:SendPlayerDetailToAdmin(player, player)
 				self:BroadcastPlayerListToAdmins()
+				self:BroadcastAuditLogsToAdmins()
 			end
 		end)
 	end)

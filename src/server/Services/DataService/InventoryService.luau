@@ -21,6 +21,7 @@ InventoryServer.Respawning = {} :: {[Player]: boolean}
 InventoryServer.HasLoaded = {} :: {[Player]: boolean}
 InventoryServer.ToolCanTouch = {} :: {[BasePart]: boolean}
 InventoryServer.ActionCooldowns = {} :: {[Player]: {[string]: number}}
+InventoryServer.BatchUpdating = {} :: {[Player]: boolean}
 
 InventoryServer.MaxStacks = 20
 function InventoryServer.SerializeInventory(inv: Types.Inventory)
@@ -74,6 +75,7 @@ function InventoryServer.SerializeForClient(inv: Types.Inventory)
 end
 
 function InventoryServer.UpdateClient(player: Player)
+	if InventoryServer.BatchUpdating[player] then return end
 	local inv = InventoryServer.AllInventories[player]
 	if not inv then return end
 
@@ -297,6 +299,51 @@ function InventoryServer.GiveItem(player: Player, itemName: string): boolean
 	return true
 end
 
+function InventoryServer.GiveItems(player: Player, itemName: string, amount: number): number
+	if typeof(amount) ~= "number" or amount ~= amount or math.abs(amount) == math.huge or amount < 1 then
+		return 0
+	end
+
+	local allItems = ServerStorage:FindFirstChild("AllItems")
+	local sample = allItems and allItems:FindFirstChild(itemName)
+	if not sample or not sample:IsA("Tool") then
+		return 0
+	end
+
+	local backpack = player:FindFirstChild("Backpack")
+	if not backpack then
+		return 0
+	end
+
+	local targetCount = math.floor(amount)
+	local granted = 0
+	local wasBatching = InventoryServer.BatchUpdating[player] == true
+	InventoryServer.BatchUpdating[player] = true
+
+	local ok, err = pcall(function()
+		for _ = 1, targetCount do
+			if not InventoryServer.GiveItem(player, itemName) then
+				break
+			end
+			granted += 1
+		end
+	end)
+
+	if not wasBatching then
+		InventoryServer.BatchUpdating[player] = nil
+	end
+
+	if not ok then
+		warn("[InventoryService] GiveItems error for", player.Name, err)
+	end
+
+	if granted > 0 and not wasBatching then
+		InventoryServer.UpdateClient(player)
+	end
+
+	return granted
+end
+
 function InventoryServer.HoldItem(player: Player, slotNum: number)
 	if typeof(slotNum) ~= "number" or slotNum % 1 ~= 0 or slotNum < 1 or slotNum > 10 then return end
 	local inv = InventoryServer.AllInventories[player]
@@ -485,6 +532,7 @@ function InventoryServer.OnPlayerAdded(player: Player)
 		InventoryServer.Janitors[player] = nil
 		InventoryServer.AllInventories[player] = nil
 		InventoryServer.ActionCooldowns[player] = nil
+		InventoryServer.BatchUpdating[player] = nil
 		InventoryServer.Respawning[player] = nil
 		InventoryServer.HasLoaded[player] = nil
 	end)

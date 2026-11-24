@@ -259,6 +259,13 @@ local AdminNetwork = ByteNet.defineNamespace("AdminNetwork", function()
 		SyncPlayerList = ByteNet.definePacket({
 			value = ByteNet.struct({
 				Players = ByteNet.array(AdminPlayerSummaryStruct),
+			}),
+		}),
+		RequestAuditLogs = ByteNet.definePacket({
+			value = ByteNet.nothing,
+		}),
+		SyncAuditLogs = ByteNet.definePacket({
+			value = ByteNet.struct({
 				AuditLogs = ByteNet.array(AdminAuditEntryStruct),
 			}),
 		}),
@@ -293,6 +300,70 @@ local AdminNetwork = ByteNet.defineNamespace("AdminNetwork", function()
 	}
 end)
 
+local NPCNetwork = ByteNet.defineNamespace("NPCNetwork", function()
+	local NPCBossSummaryStruct = ByteNet.struct({
+		NPCUID = ByteNet.string,
+		DisplayName = ByteNet.string,
+		Level = ByteNet.uint16,
+		HP = ByteNet.float32,
+		MaxHP = ByteNet.float32,
+		CastingSkillName = ByteNet.string,
+	})
+
+	return {
+		PlayerAttackNPC = ByteNet.definePacket({
+			value = ByteNet.struct({
+				NPCUID = ByteNet.string,
+			}),
+		}),
+		InteractNPC = ByteNet.definePacket({
+			value = ByteNet.struct({
+				NPCUID = ByteNet.string,
+			}),
+		}),
+		OpenNPCDialogue = ByteNet.definePacket({
+			value = ByteNet.struct({
+				NPCUID = ByteNet.string,
+				DisplayName = ByteNet.string,
+				Lines = ByteNet.array(ByteNet.string),
+			}),
+		}),
+		SyncBosses = ByteNet.definePacket({
+			value = ByteNet.struct({
+				Bosses = ByteNet.array(NPCBossSummaryStruct),
+			}),
+		}),
+		NPCTelegraphEvent = ByteNet.definePacket({
+			reliabilityType = "unreliable",
+			value = ByteNet.struct({
+				NPCUID = ByteNet.string,
+				SkillId = ByteNet.string,
+				Shape = ByteNet.string,
+				Origin = ByteNet.vec3,
+				LookVector = ByteNet.vec3,
+				Radius = ByteNet.float32,
+				BoxSize = ByteNet.vec3,
+				Duration = ByteNet.float32,
+			}),
+		}),
+		NPCVisualEvent = ByteNet.definePacket({
+			reliabilityType = "unreliable",
+			value = ByteNet.struct({
+				NPCUID = ByteNet.string,
+				EventType = ByteNet.string,
+				WorldPos = ByteNet.vec3,
+				Amount = ByteNet.int32,
+			}),
+		}),
+		NotifyToast = ByteNet.definePacket({
+			value = ByteNet.struct({
+				IsError = ByteNet.bool,
+				Message = ByteNet.string,
+			}),
+		}),
+	}
+end)
+
 return {
 	Pet = PetNetwork,
 	PetNetwork = PetNetwork,
@@ -300,6 +371,8 @@ return {
 	PlantNetwork = PlantNetwork,
 	Admin = AdminNetwork,
 	AdminNetwork = AdminNetwork,
+	NPC = NPCNetwork,
+	NPCNetwork = NPCNetwork,
 	Inventory = ByteNet.defineNamespace("InventoryNetwork", function()
 		local ClientStack = ByteNet.struct({
 			Name = ByteNet.string,

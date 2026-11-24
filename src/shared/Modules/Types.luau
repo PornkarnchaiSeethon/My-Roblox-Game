@@ -1,3 +1,5 @@
+--!strict
+
 local Types = {}
 
 
@@ -165,6 +167,109 @@ export type AdminAuditEntry = {
 }
 
 export type AdminToastInfo = {
+	IsError: boolean,
+	Message: string,
+	Timestamp: number?,
+}
+
+export type NPCAnimState = "Idle" | "Walk" | "Attack" | "SkillWindup" | "SkillCast" | "Hit" | "Death"
+
+export type NPCAIState = "Idle" | "Patrol" | "Chase" | "Attack" | "SkillWindup" | "SkillCast" | "ReturnToSpawn" | "Dead"
+
+export type NPCStatusEffectSpec = {
+	Type: "Slow",
+	Magnitude: number,
+	Duration: number,
+}
+
+export type NPCSkillDefinition = {
+	SkillId: string,
+	DisplayName: string,
+	Shape: "Circle" | "Box",
+	TargetMode: "SelfOrigin" | "TargetPosition" | "ForwardLine",
+	CastRange: number,
+	Radius: number,
+	BoxSize: Vector3,
+	WindupTime: number,
+	ActiveDuration: number,
+	Cooldown: number,
+	Damage: number,
+	HealAmount: number,
+	MinHealthPercent: number,
+	MaxHealthPercent: number,
+	DashForwardDistance: number?,
+	StatusEffect: NPCStatusEffectSpec?,
+	AnimKey: NPCAnimState,
+	TelegraphColor: Color3,
+}
+
+export type NPCLootEntry = {
+	ItemId: string,
+	Chance: number,
+	MinAmount: number,
+	MaxAmount: number,
+}
+
+export type NPCDefinition = {
+	NPCId: string,
+	DisplayName: string,
+	Category: "Enemy" | "Friendly",
+	IsBoss: boolean,
+	Level: number,
+	MaxHP: number,
+	WalkSpeed: number,
+	AggroRange: number,
+	AttackRange: number,
+	BasicAttackDamage: number,
+	BasicAttackCooldown: number,
+	LeashDistance: number,
+	ExpReward: number,
+	CashReward: number,
+	PlaceholderColor: Color3,
+	PlaceholderScale: Vector3,
+	Animations: { [string]: string },
+	SkillIds: { string },
+	LootTable: { NPCLootEntry },
+	DialogueLines: { string }?,
+}
+
+export type NPCSpawnZoneConfig = {
+	SpawnZoneId: string,
+	NPCId: string,
+	DefaultPosition: Vector3,
+	SpawnRadius: number,
+	PatrolRadius: number,
+	MaxConcurrent: number,
+	RespawnDelay: number,
+}
+
+export type NPCBossSummary = {
+	NPCUID: string,
+	DisplayName: string,
+	Level: number,
+	HP: number,
+	MaxHP: number,
+	CastingSkillName: string,
+}
+
+export type NPCDialoguePayload = {
+	NPCUID: string,
+	DisplayName: string,
+	Lines: { string },
+}
+
+export type NPCTelegraphPayload = {
+	NPCUID: string,
+	SkillId: string,
+	Shape: string,
+	Origin: Vector3,
+	LookVector: Vector3,
+	Radius: number,
+	BoxSize: Vector3,
+	Duration: number,
+}
+
+export type NPCToastInfo = {
 	IsError: boolean,
 	Message: string,
 	Timestamp: number?,

@@ -62,6 +62,9 @@ function AdminController.RefreshPlayers()
 			TargetUserId = AdminController.State.SelectedUserId,
 		})
 	end
+	if AdminController.State.ActiveTab == "AuditLog" then
+		Network.AdminNetwork.RequestAuditLogs.send(nil)
+	end
 end
 
 function AdminController.SetPanelOpen(isOpen: boolean)
@@ -83,6 +86,9 @@ function AdminController.SetPanelOpen(isOpen: boolean)
 				TargetUserId = AdminController.State.SelectedUserId,
 			})
 		end
+		if AdminController.State.ActiveTab == "AuditLog" then
+			Network.AdminNetwork.RequestAuditLogs.send(nil)
+		end
 	end
 
 	AdminController.Notify()
@@ -100,6 +106,9 @@ function AdminController.SetTab(tab: AdminTab)
 		return
 	end
 	AdminController.State.ActiveTab = tab
+	if tab == "AuditLog" and AdminController.State.IsAdmin then
+		Network.AdminNetwork.RequestAuditLogs.send(nil)
+	end
 	AdminController.Notify()
 end
 
@@ -184,13 +193,15 @@ function AdminController.Start()
 
 		if not payload.IsAdmin then
 			AdminController.State.IsOpen = false
+			AdminController.State.PlayersList = {}
+			AdminController.State.SelectedPlayerDetail = nil
+			AdminController.State.AuditLogs = {}
 		end
 		AdminController.Notify()
 	end)
 
 	Network.AdminNetwork.SyncPlayerList.listen(function(payload)
 		AdminController.State.PlayersList = payload.Players
-		AdminController.State.AuditLogs = payload.AuditLogs
 
 		local localUserId = getLocalUserId()
 		local selectedStillOnline = false
@@ -219,6 +230,11 @@ function AdminController.Start()
 			AdminController.State.SelectedPlayerDetail = nil
 		end
 
+		AdminController.Notify()
+	end)
+
+	Network.AdminNetwork.SyncAuditLogs.listen(function(payload)
+		AdminController.State.AuditLogs = payload.AuditLogs
 		AdminController.Notify()
 	end)
 

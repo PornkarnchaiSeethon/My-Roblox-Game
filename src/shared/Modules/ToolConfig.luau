@@ -1,3 +1,5 @@
+--!strict
+
 export type ToolData = {
 	DisplayName: string?,
 	ItemType: string?,
@@ -5,6 +7,7 @@ export type ToolData = {
 	Description: string?,
 	Image: string?,
 	IsDroppable: boolean?,
+	WeaponStats: { Damage: number, Cooldown: number, Range: number }?,
 }
 
 local ToolConfig = {}
@@ -15,7 +18,7 @@ ToolConfig.MaxStackByType = {
 	Special = 1,
 	Consumable = 5,
 	Resource = 10,
-}
+} :: { [string]: number }
 
 -- Add tool-specific data here. The key must match the Tool.Name.
 ToolConfig.Items = {
@@ -26,8 +29,34 @@ ToolConfig.Items = {
 		Description = "Sword for attact",
 		Image = "rbxassetid://257983597",
 		IsDroppable = true,
+		WeaponStats = { Damage = 18, Cooldown = 0.55, Range = 9.5 },
 	},
-}
+	iron_sword = {
+		DisplayName = "Iron Sword",
+		ItemType = "Weapon",
+		MaxStack = 1,
+		Description = "ดาบเหล็กกล้าสำหรับต่อสู้กับมอนสเตอร์ป่าและบอส",
+		Image = "rbxassetid://257983597",
+		IsDroppable = true,
+		WeaponStats = { Damage = 28, Cooldown = 0.50, Range = 10.5 },
+	},
+	slime_gel = {
+		DisplayName = "Slime Gel",
+		ItemType = "Resource",
+		MaxStack = 32,
+		Description = "เจลเหนียวหนืดที่ได้จาก Moss Slime ใช้เป็นวัตถุดิบคราฟต์และขาย",
+		Image = "rbxassetid://1030303001",
+		IsDroppable = true,
+	},
+	wolf_fang = {
+		DisplayName = "Wolf Fang",
+		ItemType = "Resource",
+		MaxStack = 32,
+		Description = "เขี้ยวหมาป่าคมกริบ ดรอปจาก Feral Moss Wolf",
+		Image = "rbxassetid://1030303002",
+		IsDroppable = true,
+	},
+} :: { [string]: ToolData }
 
 local function getToolName(toolOrName: Tool | string): string
 	if typeof(toolOrName) == "Instance" then
@@ -38,16 +67,19 @@ end
 
 function ToolConfig.Get(toolOrName: Tool | string): ToolData
 	local toolName = getToolName(toolOrName)
-	local configured = ToolConfig.Items[toolName] or {}
+	local configured: ToolData = ToolConfig.Items[toolName] or {}
 	local tool = if typeof(toolOrName) == "Instance" and toolOrName:IsA("Tool")
 		then toolOrName
 		else nil
 
 	local itemType = configured.ItemType
 	if not itemType and tool then
-		itemType = tool:GetAttribute("ItemType")
+		local attrItemType = tool:GetAttribute("ItemType")
+		if typeof(attrItemType) == "string" then
+			itemType = attrItemType
+		end
 	end
-	itemType = itemType or "Resource"
+	local resolvedItemType = itemType or "Resource"
 
 	local description = configured.Description
 	if description == nil and tool then
@@ -64,16 +96,17 @@ function ToolConfig.Get(toolOrName: Tool | string): ToolData
 		isDroppable = if tool then tool:GetAttribute("IsDroppable") ~= false else true
 	end
 
-	local maxStack = configured.MaxStack or ToolConfig.MaxStackByType[itemType] or 1
-	local displayName = configured.DisplayName or if tool then tool.Name else toolName
+	local maxStack = configured.MaxStack or ToolConfig.MaxStackByType[resolvedItemType] or 1
+	local displayName = configured.DisplayName or (if tool then tool.Name else toolName)
 
 	return {
 		DisplayName = displayName,
-		ItemType = itemType,
+		ItemType = resolvedItemType,
 		MaxStack = math.max(1, math.floor(maxStack)),
 		Description = description or "",
 		Image = image or "",
 		IsDroppable = isDroppable,
+		WeaponStats = configured.WeaponStats,
 	}
 end
 

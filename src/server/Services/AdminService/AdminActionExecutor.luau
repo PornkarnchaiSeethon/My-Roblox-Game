@@ -1,6 +1,7 @@
 --!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local AdminConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("AdminConfig"))
@@ -9,7 +10,14 @@ local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 
 local AdminActionExecutor = {}
 
-local auditLogs: { Types.AdminAuditEntry } = {}
+type StoredAuditEntry = {
+	Seq: number,
+	Entry: Types.AdminAuditEntry,
+}
+
+local auditSeq = 0
+local criticalAuditLogs: { StoredAuditEntry } = {}
+local generalAuditLogs: { StoredAuditEntry } = {}
 
 local function isFiniteNumber(value: any): boolean
 	return typeof(value) == "number" and value == value and math.abs(value) ~= math.huge
@@ -53,7 +61,12 @@ local function getHumanoid(player: Player): Humanoid?
 	return character:FindFirstChildOfClass("Humanoid")
 end
 
+local function isCriticalAuditAction(action: string): boolean
+	return action == "GiveItem" or action == "SelfGiveItem"
+end
+
 function AdminActionExecutor.RecordAudit(adminName: string, action: string, targetName: string, detail: string)
+	auditSeq += 1
 	local entry: Types.AdminAuditEntry = {
 		Timestamp = clampUint32(os.time()),
 		AdminName = tostring(adminName),
@@ -61,16 +74,104 @@ function AdminActionExecutor.RecordAudit(adminName: string, action: string, targ
 		TargetName = tostring(targetName),
 		Detail = tostring(detail),
 	}
-	table.insert(auditLogs, 1, entry)
+	local stored: StoredAuditEntry = {
+		Seq = auditSeq,
+		Entry = entry,
+	}
 
-	local maxEntries = math.max(1, AdminConfig.MaxAuditLogEntries or 50)
-	while #auditLogs > maxEntries do
-		table.remove(auditLogs)
+	if isCriticalAuditAction(entry.Action) then
+		table.insert(criticalAuditLogs, 1, stored)
+		local maxCritical = math.max(1, AdminConfig.MaxCriticalAuditLogEntries or 50)
+		while #criticalAuditLogs > maxCritical do
+			table.remove(criticalAuditLogs)
+		end
+		warn(
+			string.format(
+				"[AdminAudit] [%s] admin=%s target=%s detail=%s",
+				entry.Action,
+				entry.AdminName,
+				entry.TargetName,
+				entry.Detail
+			)
+		)
+	else
+		table.insert(generalAuditLogs, 1, stored)
+		local maxGeneral = math.max(1, AdminConfig.MaxAuditLogEntries or 50)
+		while #generalAuditLogs > maxGeneral do
+			table.remove(generalAuditLogs)
+		end
+		print(
+			string.format(
+				"[AdminAudit] [%s] admin=%s target=%s detail=%s",
+				entry.Action,
+				entry.AdminName,
+				entry.TargetName,
+				entry.Detail
+			)
+		)
 	end
 end
 
 function AdminActionExecutor.GetAuditLogs(): { Types.AdminAuditEntry }
-	return table.clone(auditLogs)
+	local merged: { StoredAuditEntry } = {}
+	for _, item in criticalAuditLogs do
+		table.insert(merged, item)
+	end
+	for _, item in generalAuditLogs do
+		table.insert(merged, item)
+	end
+
+	table.sort(merged, function(a: StoredAuditEntry, b: StoredAuditEntry)
+		return a.Seq > b.Seq
+	end)
+
+	local result: { Types.AdminAuditEntry } = table.create(#merged)
+	for i, item in merged do
+		result[i] = item.Entry
+	end
+	return result
+end
+
+function AdminActionExecutor.EnsureStudioDummyTools(): number
+	if not RunService:IsStudio() or AdminConfig.AutoCreateStudioDummyTools ~= true then
+		return 0
+	end
+
+	local allItems = ServerStorage:FindFirstChild("AllItems")
+	if not allItems then
+		local folder = Instance.new("Folder")
+		folder.Name = "AllItems"
+		folder.Parent = ServerStorage
+		allItems = folder
+	end
+	if not allItems then
+		return 0
+	end
+
+	local created = 0
+	for itemId in ToolConfig.Items do
+		local existing = allItems:FindFirstChild(itemId)
+		if existing then
+			continue
+		end
+
+		local tool = Instance.new("Tool")
+		tool.Name = itemId
+		tool.RequiresHandle = true
+		tool:SetAttribute("IsDummyStudioTool", true)
+
+		local handle = Instance.new("Part")
+		handle.Name = "Handle"
+		handle.Size = Vector3.new(1, 1, 1)
+		handle.CanCollide = false
+		handle.Massless = true
+		handle.Parent = tool
+
+		tool.Parent = allItems
+		created += 1
+	end
+
+	return created
 end
 
 function AdminActionExecutor.GetMissingStudioItems(): { string }
@@ -251,12 +352,26 @@ function AdminActionExecutor.SpawnItems(
 
 	local amount = math.clamp(math.floor(rawAmount), 1, AdminConfig.MaxSpawnAmountPerAction)
 	local granted = 0
-	for _ = 1, amount do
-		local gave = inventoryService.GiveItem(targetPlayer, itemId)
-		if not gave then
-			break
+	if type(inventoryService.GiveItems) == "function" then
+		local callOk, callResult = pcall(inventoryService.GiveItems, targetPlayer, itemId, amount)
+		if callOk and isFiniteNumber(callResult) then
+			granted = math.max(0, math.floor(callResult))
+		elseif not callOk then
+			warn("[AdminActionExecutor] GiveItems failed for", targetPlayer.Name, itemId, callResult)
 		end
-		granted += 1
+	else
+		local callOk, callErr = pcall(function()
+			for _ = 1, amount do
+				local gave = inventoryService.GiveItem(targetPlayer, itemId)
+				if not gave then
+					break
+				end
+				granted += 1
+			end
+		end)
+		if not callOk then
+			warn("[AdminActionExecutor] GiveItem fallback loop failed for", targetPlayer.Name, itemId, callErr)
+		end
 	end
 
 	if granted == 0 then
@@ -291,11 +406,24 @@ function AdminActionExecutor.SetOwnWalkSpeed(
 	end
 
 	local clampedSpeed = math.clamp(math.round(rawSpeed * 10) / 10, AdminConfig.MinWalkSpeed, AdminConfig.MaxWalkSpeed)
-	customSpeeds[adminPlayer] = clampedSpeed
+	if clampedSpeed == AdminConfig.DefaultWalkSpeed then
+		customSpeeds[adminPlayer] = nil
+	else
+		customSpeeds[adminPlayer] = clampedSpeed
+	end
 
-	local humanoid = getHumanoid(adminPlayer)
-	if humanoid then
-		humanoid.WalkSpeed = clampedSpeed
+	local character = adminPlayer.Character
+	if character then
+		character:SetAttribute("BaseWalkSpeed", clampedSpeed)
+		local activeSlowMult = character:GetAttribute("ActiveSlowMultiplier")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			if type(activeSlowMult) == "number" and activeSlowMult > 0 and activeSlowMult < 1 then
+				humanoid.WalkSpeed = math.max(2, clampedSpeed * activeSlowMult)
+			else
+				humanoid.WalkSpeed = clampedSpeed
+			end
+		end
 	end
 
 	AdminActionExecutor.RecordAudit(

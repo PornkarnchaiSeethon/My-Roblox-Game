@@ -7,11 +7,20 @@ local AdminConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("Admin
 
 local AdminAuthManager = {}
 
-local cachedAuth: { [Player]: boolean } = {}
+type AuthCacheEntry = {
+	IsAdmin: boolean,
+	ExpiresAt: number,
+}
+
+local cachedAuth: { [Player]: AuthCacheEntry } = {}
 
 local function setCachedAuth(player: Player, isAdmin: boolean): boolean
 	if player:IsDescendantOf(Players) then
-		cachedAuth[player] = isAdmin
+		local ttl = math.max(10, AdminConfig.AuthCacheTTLSeconds or 90)
+		cachedAuth[player] = {
+			IsAdmin = isAdmin,
+			ExpiresAt = os.clock() + ttl,
+		}
 	else
 		cachedAuth[player] = nil
 	end
@@ -19,7 +28,9 @@ local function setCachedAuth(player: Player, isAdmin: boolean): boolean
 end
 
 function AdminAuthManager.EvaluateAdminStatus(player: Player): boolean
-	if AdminConfig.AllowStudioAccess and RunService:IsStudio() then
+	local isStudioNonAdminTest = AdminConfig.StudioNonAdminTestUserIds ~= nil
+		and AdminConfig.StudioNonAdminTestUserIds[player.UserId] == true
+	if AdminConfig.AllowStudioAccess and RunService:IsStudio() and not isStudioNonAdminTest then
 		return setCachedAuth(player, true)
 	end
 
@@ -64,9 +75,9 @@ function AdminAuthManager.EvaluateAdminStatus(player: Player): boolean
 end
 
 function AdminAuthManager.IsAdmin(player: Player): boolean
-	local cached = cachedAuth[player]
-	if cached ~= nil then
-		return cached
+	local entry = cachedAuth[player]
+	if entry ~= nil and os.clock() < entry.ExpiresAt then
+		return entry.IsAdmin
 	end
 	return AdminAuthManager.EvaluateAdminStatus(player)
 end
