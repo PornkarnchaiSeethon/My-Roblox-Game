@@ -370,12 +370,10 @@ local function PlantModal(props: PlantModalProps)
 
 				local btnColor = if not canApply
 					then Color3.fromRGB(40, 44, 58)
-					elseif fertId == "mystic_fertilizer" then Color3.fromRGB(130, 75, 195)
 					else Color3.fromRGB(130, 96, 48)
 
 				local strokeColor = if not canApply
 					then Color3.fromRGB(56, 62, 80)
-					elseif fertId == "mystic_fertilizer" then Color3.fromRGB(195, 140, 255)
 					else Color3.fromRGB(205, 165, 95)
 
 				scrollChildren["Fert_" .. fertId] = e("TextButton", {
@@ -450,12 +448,6 @@ local function PlantModal(props: PlantModalProps)
 				BorderSizePixel = 0,
 			}, {
 				Corner = e("UICorner", { CornerRadius = UDim.new(0, 14) }),
-				BottomCover = e("Frame", {
-					Position = UDim2.new(0, 0, 1, -14),
-					Size = UDim2.new(1, 0, 0, 14),
-					BackgroundColor3 = Color3.fromRGB(28, 31, 42),
-					BorderSizePixel = 0,
-				}),
 				Divider = e("Frame", {
 					Position = UDim2.new(0, 0, 1, -1),
 					Size = UDim2.new(1, 0, 0, 1),

@@ -97,7 +97,7 @@ function PlantService:HasNaturePetInPlot(player: Player): boolean
 		return false
 	end
 	for _, pet in profile.Data.Pets.Instances do
-		if pet.State == "InPlot" and (pet.SpeciesId == "sprout_slime" or pet.SpeciesId == "flora_guardian") then
+		if pet.State == "InPlot" and pet.SpeciesId == "sprout_slime" then
 			return true
 		end
 	end

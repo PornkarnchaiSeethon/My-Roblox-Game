@@ -247,10 +247,16 @@ function PlotManager.place(player: Player, name: string, targetCF: CFrame): bool
 	end
 
 	local _, objectSize = object:GetBoundingBox()
-	if not PlacementValidator.withinBounds(plot, objectSize, targetCF) then
+	local snappedCF = PlacementValidator.snapCFrameToGrid(
+		plot,
+		objectSize,
+		targetCF,
+		PlacementValidator.SERVER_GRID_SIZE
+	)
+	if not PlacementValidator.withinBounds(plot, objectSize, snappedCF) then
 		return false
 	end
-	if not PlacementValidator.noCollisions(plot, objectSize, targetCF) then
+	if not PlacementValidator.noCollisions(plot, objectSize, snappedCF) then
 		return false
 	end
 
@@ -262,7 +268,12 @@ function PlotManager.place(player: Player, name: string, targetCF: CFrame): bool
 	end
 
 	local newObject = object:Clone()
-	newObject:PivotTo(targetCF)
+	for _, desc in newObject:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+		end
+	end
+	newObject:PivotTo(snappedCF)
 	newObject.Parent = objectsFolder
 	PlotManager.setupObject(player, newObject, nil)
 	return true

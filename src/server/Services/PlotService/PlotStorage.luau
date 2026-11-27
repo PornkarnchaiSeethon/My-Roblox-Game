@@ -78,6 +78,11 @@ function PlotStorage.load(player: Player)
 			end)
 			if ok and relativeCF then
 				local newObject = template:Clone()
+				for _, desc in newObject:GetDescendants() do
+					if desc:IsA("BasePart") then
+						desc.Anchored = true
+					end
+				end
 				newObject:PivotTo(plot:GetPivot():ToWorldSpace(relativeCF))
 				newObject.Parent = objectsFolder
 				PlotManager.setupObject(player, newObject, if type(info.objectId) == "string" then info.objectId else nil)

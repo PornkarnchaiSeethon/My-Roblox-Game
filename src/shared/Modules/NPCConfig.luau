@@ -72,9 +72,34 @@ NPCConfig.NPCs = {
 		Animations = DEFAULT_ENEMY_ANIMATIONS,
 		SkillIds = { "slime_acid_splash" },
 		LootTable = {
-			{ ItemId = "slime_gel", Chance = 0.75, MinAmount = 1, MaxAmount = 2 },
-			{ ItemId = "carrot_seed", Chance = 0.35, MinAmount = 1, MaxAmount = 2 },
-			{ ItemId = "berry_feed", Chance = 0.25, MinAmount = 1, MaxAmount = 1 },
+			{ ItemId = "normal_Sword", Chance = 0.25, MinAmount = 1, MaxAmount = 1 },
+		},
+	},
+	elder_rowan = {
+		NPCId = "elder_rowan",
+		DisplayName = "ผู้เฒ่าโรแวน (Elder Rowan)",
+		Category = "Friendly",
+		IsBoss = false,
+		Level = 99,
+		MaxHP = 9999,
+		WalkSpeed = 0,
+		AggroRange = 0,
+		AttackRange = 0,
+		BasicAttackDamage = 0,
+		BasicAttackCooldown = 0,
+		LeashDistance = 10,
+		ExpReward = 0,
+		CashReward = 0,
+		PlaceholderColor = Color3.fromRGB(70, 140, 215),
+		PlaceholderScale = Vector3.new(2.6, 5.2, 2.0),
+		Animations = {
+			Idle = "rbxassetid://507766388",
+		},
+		SkillIds = {},
+		LootTable = {},
+		DialogueLines = {
+			"ยินดีต้อนรับสู่ดินแดนฟาร์มและผจญภัย! คุณสามารถปลูกพืชใน Plot [H] และฟักไข่สัตว์เลี้ยง [P] เพื่อสร้างทีมต่อสู้ได้",
+			"ระวังวงเตือนสีแดงบนพื้นเมื่อต่อสู้กับ Moss Slime เพราะสกิลกรดพิษของมันรุนแรงมาก!",
 		},
 	},
 } :: { [string]: Types.NPCDefinition }
@@ -89,10 +114,18 @@ NPCConfig.DefaultSpawnZones = {
 		MaxConcurrent = 4,
 		RespawnDelay = 8,
 	},
+	{
+		SpawnZoneId = "village_guide_spawn",
+		NPCId = "elder_rowan",
+		DefaultPosition = Vector3.new(24, 4, 24),
+		SpawnRadius = 0,
+		PatrolRadius = 0,
+		MaxConcurrent = 1,
+		RespawnDelay = 5,
+	},
 } :: { Types.NPCSpawnZoneConfig }
 
 NPCConfig.WeaponStats = {
-	iron_sword = { Damage = 28, Cooldown = 0.50, Range = 10.5 },
 	normal_Sword = { Damage = 18, Cooldown = 0.55, Range = 9.5 },
 } :: { [string]: { Damage: number, Cooldown: number, Range: number } }
 

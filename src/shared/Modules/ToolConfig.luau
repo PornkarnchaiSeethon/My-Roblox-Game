@@ -31,6 +31,46 @@ ToolConfig.Items = {
 		IsDroppable = true,
 		WeaponStats = { Damage = 18, Cooldown = 0.55, Range = 9.5 },
 	},
+	wooden_planter = {
+		DisplayName = "Wooden Planter",
+		ItemType = "Special",
+		MaxStack = 10,
+		Description = "กระบะไม้สำหรับปลูกพืชใน Plot",
+		Image = "rbxassetid://8508980527",
+		IsDroppable = true,
+	},
+	carrot_seed = {
+		DisplayName = "Carrot Seed",
+		ItemType = "Resource",
+		MaxStack = 32,
+		Description = "เมล็ดแครอทสำหรับลงปลูกในกระบะ",
+		Image = "rbxassetid://6319951708",
+		IsDroppable = true,
+	},
+	fresh_carrot = {
+		DisplayName = "Fresh Carrot",
+		ItemType = "Consumable",
+		MaxStack = 32,
+		Description = "แครอทสดที่ได้จากการเก็บเกี่ยว",
+		Image = "",
+		IsDroppable = true,
+	},
+	watering_can = {
+		DisplayName = "Watering Can",
+		ItemType = "Special",
+		MaxStack = 1,
+		Description = "บัวรดน้ำสำหรับรดน้ำเพิ่มความชุ่มชื้นให้แปลงปลูก",
+		Image = "",
+		IsDroppable = false,
+	},
+	compost_fertilizer = {
+		DisplayName = "Compost Fertilizer",
+		ItemType = "Consumable",
+		MaxStack = 16,
+		Description = "ปุ๋ยหมักอินทรีย์ เร่งความเร็วการเติบโตของพืช +35%",
+		Image = "",
+		IsDroppable = true,
+	},
 } :: { [string]: ToolData }
 
 local function getToolName(toolOrName: Tool | string): string

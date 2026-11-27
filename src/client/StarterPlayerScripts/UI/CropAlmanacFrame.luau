@@ -142,7 +142,7 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 			contentElement = e("TextLabel", {
 				Size = UDim2.fromScale(1, 1),
 				BackgroundTransparency = 1,
-				Text = "ยังไม่มีพืชที่กำลังปลูกใน Plot ของคุณ\nวาง Wooden Planter หรือ Fertile Garden Bed แล้วกดโต้ตอบเพื่อเริ่มเพาะปลูก!",
+				Text = "ยังไม่มีพืชที่กำลังปลูกใน Plot ของคุณ\nวาง Wooden Planter แล้วกดโต้ตอบเพื่อเริ่มเพาะปลูก!",
 				Font = Enum.Font.GothamMedium,
 				TextSize = 14,
 				TextColor3 = Color3.fromRGB(140, 150, 175),
@@ -395,12 +395,6 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 				BorderSizePixel = 0,
 			}, {
 				Corner = e("UICorner", { CornerRadius = UDim.new(0, 14) }),
-				BottomCover = e("Frame", {
-					Position = UDim2.new(0, 0, 1, -14),
-					Size = UDim2.new(1, 0, 0, 14),
-					BackgroundColor3 = Color3.fromRGB(28, 31, 42),
-					BorderSizePixel = 0,
-				}),
 				Divider = e("Frame", {
 					Position = UDim2.new(0, 0, 1, -1),
 					Size = UDim2.new(1, 0, 0, 1),

@@ -93,12 +93,6 @@ local function InventoryFrame(props: Props)
 				BorderSizePixel = 0,
 			}, {
 				Corner = e("UICorner", { CornerRadius = UDim.new(0, 14) }),
-				BottomCover = e("Frame", {
-					Position = UDim2.new(0, 0, 1, -14),
-					Size = UDim2.new(1, 0, 0, 14),
-					BackgroundColor3 = Color3.fromRGB(28, 31, 42),
-					BorderSizePixel = 0,
-				}),
 				Divider = e("Frame", {
 					Position = UDim2.new(0, 0, 1, -1),
 					Size = UDim2.new(1, 0, 0, 1),

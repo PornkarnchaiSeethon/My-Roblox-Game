@@ -60,23 +60,13 @@ PetConfig.FunctionalPlotObjects = {
 
 PetConfig.Foods = {
 	berry_feed = { HungerRestore = 25, GrowthExp = 40 },
-	golden_apple = { HungerRestore = 60, GrowthExp = 120 },
-	evo_crystal = { HungerRestore = 100, GrowthExp = 300, IsEvolutionCatalyst = true },
 } :: { [string]: FoodDefinition }
 
 PetConfig.Eggs = {
 	forest_egg = {
 		HatchTimeSeconds = 180,
 		Pool = {
-			{ SpeciesId = "sprout_slime", Weight = 75 },
-			{ SpeciesId = "moss_wolf", Weight = 25 },
-		},
-	},
-	mystic_forest_egg = {
-		HatchTimeSeconds = 420,
-		Pool = {
-			{ SpeciesId = "moss_wolf", Weight = 60 },
-			{ SpeciesId = "ancient_treant", Weight = 40 },
+			{ SpeciesId = "sprout_slime", Weight = 100 },
 		},
 	},
 } :: { [string]: EggDefinition }
@@ -92,70 +82,13 @@ PetConfig.Species = {
 		WalkSpeed = 12,
 		FavoriteFood = "berry_feed",
 		StageThresholds = { Juvenile = 100, Adult = 350, Evolved = 800 },
-		EvolutionTarget = "flora_guardian",
-		EvolutionItem = "evo_crystal",
+		EvolutionTarget = nil,
+		EvolutionItem = nil,
 		ModelByStage = {
 			Baby = "sprout_slime_Baby",
 			Juvenile = "sprout_slime_Adult",
 			Adult = "sprout_slime_Adult",
-			Evolved = "flora_guardian_Evolved",
-		},
-	},
-	moss_wolf = {
-		DisplayName = "Moss Wolf",
-		Rarity = "Rare",
-		BaseHP = 210,
-		BaseATK = 28,
-		AttackCooldown = 1.5,
-		AttackRange = 16,
-		WalkSpeed = 16,
-		FavoriteFood = "golden_apple",
-		StageThresholds = { Juvenile = 150, Adult = 450, Evolved = 1000 },
-		EvolutionTarget = "ancient_treant",
-		EvolutionItem = "evo_crystal",
-		ModelByStage = {
-			Baby = "moss_wolf_Baby",
-			Juvenile = "moss_wolf_Adult",
-			Adult = "moss_wolf_Adult",
-			Evolved = "ancient_treant_Evolved",
-		},
-	},
-	flora_guardian = {
-		DisplayName = "Flora Guardian",
-		Rarity = "Epic",
-		BaseHP = 380,
-		BaseATK = 48,
-		AttackCooldown = 1.4,
-		AttackRange = 18,
-		WalkSpeed = 16,
-		FavoriteFood = "golden_apple",
-		StageThresholds = { Juvenile = 0, Adult = 0, Evolved = 0 },
-		EvolutionTarget = nil,
-		EvolutionItem = nil,
-		ModelByStage = {
-			Baby = "flora_guardian_Evolved",
-			Juvenile = "flora_guardian_Evolved",
-			Adult = "flora_guardian_Evolved",
-			Evolved = "flora_guardian_Evolved",
-		},
-	},
-	ancient_treant = {
-		DisplayName = "Ancient Treant",
-		Rarity = "Legendary",
-		BaseHP = 560,
-		BaseATK = 64,
-		AttackCooldown = 1.6,
-		AttackRange = 20,
-		WalkSpeed = 14,
-		FavoriteFood = "golden_apple",
-		StageThresholds = { Juvenile = 0, Adult = 0, Evolved = 0 },
-		EvolutionTarget = nil,
-		EvolutionItem = nil,
-		ModelByStage = {
-			Baby = "ancient_treant_Evolved",
-			Juvenile = "ancient_treant_Evolved",
-			Adult = "ancient_treant_Evolved",
-			Evolved = "ancient_treant_Evolved",
+			Evolved = "sprout_slime_Adult",
 		},
 	},
 } :: { [string]: SpeciesDefinition }
@@ -165,40 +98,7 @@ PetConfig.BreedingRecipes = {
 	["sprout_slime|sprout_slime"] = {
 		DurationSeconds = 300,
 		Outcomes = {
-			{ EggItemId = "forest_egg", Weight = 80 },
-			{ EggItemId = "mystic_forest_egg", Weight = 20 },
-		},
-	},
-	["moss_wolf|sprout_slime"] = {
-		DurationSeconds = 360,
-		Outcomes = {
-			{ EggItemId = "forest_egg", Weight = 50 },
-			{ EggItemId = "mystic_forest_egg", Weight = 50 },
-		},
-	},
-	["moss_wolf|moss_wolf"] = {
-		DurationSeconds = 420,
-		Outcomes = {
-			{ EggItemId = "mystic_forest_egg", Weight = 100 },
-		},
-	},
-	["flora_guardian|flora_guardian"] = {
-		DurationSeconds = 480,
-		Outcomes = {
-			{ EggItemId = "mystic_forest_egg", Weight = 100 },
-		},
-	},
-	["flora_guardian|sprout_slime"] = {
-		DurationSeconds = 360,
-		Outcomes = {
-			{ EggItemId = "forest_egg", Weight = 40 },
-			{ EggItemId = "mystic_forest_egg", Weight = 60 },
-		},
-	},
-	["ancient_treant|flora_guardian"] = {
-		DurationSeconds = 540,
-		Outcomes = {
-			{ EggItemId = "mystic_forest_egg", Weight = 100 },
+			{ EggItemId = "forest_egg", Weight = 100 },
 		},
 	},
 } :: { [string]: BreedingRecipe }

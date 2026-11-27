@@ -54,7 +54,7 @@ local function ensureFallbackAllItemsTools()
 	end
 
 	local createdNames: { string } = {}
-	for _, itemId in { "iron_sword", "slime_gel", "wolf_fang" } do
+	for _, itemId in { "normal_Sword" } do
 		local existing = allItems:FindFirstChild(itemId)
 		if not existing or not existing:IsA("Tool") then
 			local tool = Instance.new("Tool")
@@ -68,7 +68,7 @@ local function ensureFallbackAllItemsTools()
 
 			local handle = Instance.new("Part")
 			handle.Name = "Handle"
-			handle.Size = if itemId == "iron_sword" then Vector3.new(1, 1, 3) else Vector3.new(1, 1, 1)
+			handle.Size = Vector3.new(1, 1, 3)
 			handle.CanCollide = false
 			handle.Parent = tool
 
