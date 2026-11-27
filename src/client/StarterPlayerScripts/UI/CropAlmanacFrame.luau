@@ -71,7 +71,6 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 		end
 	end, {})
 
-	-- รวบรวมและจัดเรียงแปลงที่กำลังปลูก (สุกพร้อมเก็บอยู่ด้านบน ตามด้วยความคืบหน้าสูงสุด)
 	local activePlanters: { any } = {}
 	for _, planter in props.plantersById do
 		table.insert(activePlanters, planter)
@@ -95,7 +94,6 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 		totalHarvests += count
 	end
 
-	-- แถบปุ่มสลับ Tab
 	local tabChildren: { [string]: any } = {
 		Layout = e("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -134,7 +132,6 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 		})
 	end
 
-	-- เนื้อหาของแต่ละ Tab
 	local contentElement: any
 
 	if activeTab == "ActivePlanters" then
@@ -335,7 +332,6 @@ local function CropAlmanacFrame(props: CropAlmanacProps)
 			}, planterCards)
 		end
 	else
-		-- Crop Almanac Tab
 		local sortedCrops = getSortedCrops()
 		local almanacChildren: { [string]: any } = {
 			Padding = e("UIPadding", {

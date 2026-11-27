@@ -209,7 +209,6 @@ local function refreshPlanterVisual(planterModel: Model)
 		return
 	end
 
-	-- Rebuild 3D visual only when crop or growth stage actually changes
 	if record.CurrentCropId ~= cropId or record.CurrentStage ~= stage or not record.VisualCrop or not record.VisualCrop.Parent then
 		if record.VisualCrop then
 			record.VisualCrop:Destroy()

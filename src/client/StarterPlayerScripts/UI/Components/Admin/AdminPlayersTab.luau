@@ -13,6 +13,7 @@ export type AdminPlayersTabProps = {
 	LocalUserId: number,
 	OnSelectPlayer: (number) -> (),
 	OnOpenSpawner: () -> (),
+	OnOpenPetSpawner: (() -> ())?,
 }
 
 local function createStatCard(label: string, value: string, layoutOrder: number)
@@ -53,7 +54,6 @@ end
 local function AdminPlayersTab(props: AdminPlayersTabProps)
 	local localUserId = props.LocalUserId
 
-	-- รายชื่อผู้เล่นฝั่งซ้าย
 	local playerListChildren: { [string]: any } = {
 		Padding = e("UIPadding", {
 			PaddingTop = UDim.new(0, 8),
@@ -125,7 +125,6 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 		})
 	end
 
-	-- รายละเอียดผู้เล่นฝั่งขวา
 	local detailElement: any
 	local detail = props.SelectedDetail
 	if not detail then
@@ -221,12 +220,12 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 
 			ProfileHeader = e("Frame", {
 				LayoutOrder = 1,
-				Size = UDim2.new(1, 0, 0, 44),
+				Size = UDim2.new(1, 0, 0, 40),
 				BackgroundTransparency = 1,
 			}, {
 				Title = e("TextLabel", {
 					Position = UDim2.fromOffset(0, 0),
-					Size = UDim2.new(1, -210, 0, 22),
+					Size = UDim2.new(1, 0, 0, 22),
 					BackgroundTransparency = 1,
 					Text = detail.DisplayName,
 					Font = Enum.Font.GothamBlack,
@@ -237,7 +236,7 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 				}),
 				Sub = e("TextLabel", {
 					Position = UDim2.fromOffset(0, 23),
-					Size = UDim2.new(1, -210, 0, 16),
+					Size = UDim2.new(1, 0, 0, 16),
 					BackgroundTransparency = 1,
 					Text = `@{detail.Name}  •  UserId: {detail.UserId}`,
 					Font = Enum.Font.GothamMedium,
@@ -246,10 +245,22 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 					TextTruncate = Enum.TextTruncate.AtEnd,
 					TextXAlignment = Enum.TextXAlignment.Left,
 				}),
+			}),
+
+			QuickActionsRow = e("Frame", {
+				LayoutOrder = 2,
+				Size = UDim2.new(1, 0, 0, 32),
+				BackgroundTransparency = 1,
+			}, {
+				Layout = e("UIListLayout", {
+					FillDirection = Enum.FillDirection.Horizontal,
+					Padding = UDim.new(0, 8),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+					HorizontalFlex = Enum.UIFlexAlignment.Fill,
+				}),
 				QuickSpawnBtn = e("TextButton", {
-					AnchorPoint = Vector2.new(1, 0.5),
-					Position = UDim2.new(1, 0, 0.5, 0),
-					Size = UDim2.fromOffset(202, 34),
+					LayoutOrder = 1,
+					Size = UDim2.new(0, 0, 1, 0),
 					BackgroundColor3 = Color3.fromRGB(54, 120, 224),
 					TextColor3 = Color3.new(1, 1, 1),
 					Font = Enum.Font.GothamBold,
@@ -261,10 +272,24 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 				}, {
 					Corner = e("UICorner", { CornerRadius = UDim.new(0, 8) }),
 				}),
+				QuickSpawnPetBtn = props.OnOpenPetSpawner and e("TextButton", {
+					LayoutOrder = 2,
+					Size = UDim2.new(0, 0, 1, 0),
+					BackgroundColor3 = Color3.fromRGB(48, 152, 100),
+					TextColor3 = Color3.new(1, 1, 1),
+					Font = Enum.Font.GothamBold,
+					TextSize = 12,
+					Text = `ไปหน้าเสกสัตว์เลี้ยงให้ {detail.DisplayName}`,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+					AutoButtonColor = true,
+					[React.Event.Activated] = props.OnOpenPetSpawner,
+				}, {
+					Corner = e("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				}),
 			}),
 
 			StatsGrid = e("Frame", {
-				LayoutOrder = 2,
+				LayoutOrder = 3,
 				Size = UDim2.new(1, 0, 0, 196),
 				BackgroundTransparency = 1,
 			}, {
@@ -288,7 +313,7 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 			}),
 
 			InventoryTitle = e("TextLabel", {
-				LayoutOrder = 3,
+				LayoutOrder = 4,
 				Size = UDim2.new(1, 0, 0, 20),
 				BackgroundTransparency = 1,
 				Text = `รายการไอเทมในกระเป๋า ({#detail.Items} Stacks)`,
@@ -300,7 +325,7 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 
 			InventoryList = if #detail.Items == 0
 				then e("TextLabel", {
-					LayoutOrder = 4,
+					LayoutOrder = 5,
 					Size = UDim2.new(1, 0, 0, 36),
 					BackgroundTransparency = 1,
 					Text = "ผู้เล่นนี้ยังไม่มีไอเทมในกระเป๋า",
@@ -310,7 +335,7 @@ local function AdminPlayersTab(props: AdminPlayersTabProps)
 					TextXAlignment = Enum.TextXAlignment.Left,
 				})
 				else e("Frame", {
-					LayoutOrder = 4,
+					LayoutOrder = 5,
 					Size = UDim2.new(1, 0, 0, 0),
 					AutomaticSize = Enum.AutomaticSize.Y,
 					BackgroundTransparency = 1,

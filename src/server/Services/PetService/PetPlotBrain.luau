@@ -10,7 +10,9 @@ type ActivePlotPet = {
 	Model: Model,
 	ModelKey: string,
 	NextMoveAt: number,
+	CurrentCF: CFrame,
 	TargetCF: CFrame,
+	IsMoving: boolean,
 }
 
 local playerPlotPets: { [Player]: { [string]: ActivePlotPet } } = {}
@@ -36,7 +38,6 @@ local function prepareAnchoredModel(model: Model)
 			descendant.CanCollide = false
 			descendant.CanQuery = false
 		elseif descendant:IsA("Humanoid") then
-			-- หลีกเลี่ยงภาระ Physics/Humanoid บน Server
 			descendant:Destroy()
 		end
 	end
@@ -61,7 +62,6 @@ function PetPlotBrain.CreatePetModel(player: Player, petData: any): (Model, stri
 	if template and template:IsA("Model") then
 		model = template:Clone()
 	else
-		-- Fallback Placeholder Model กรณีที่ยังไม่ได้นำเข้าโมเดล 3D ใน ReplicatedStorage.PetModels
 		model = Instance.new("Model")
 		local body = Instance.new("Part")
 		body.Name = "Body"
@@ -93,20 +93,49 @@ function PetPlotBrain.CreatePetModel(player: Player, petData: any): (Model, stri
 	model:SetAttribute("Level", petData.Level)
 	model:SetAttribute("Hunger", petData.Hunger)
 	model:SetAttribute("State", petData.State)
+	model:SetAttribute("WalkSpeed", if species then species.WalkSpeed else 10)
+	model:SetAttribute("PivotHeightOffset", PetPlotBrain.GetPivotHeightAboveBottom(model))
 
 	return model, modelName
 end
 
 function PetPlotBrain.UpdateModelAttributes(model: Model, petData: any)
+	local species = PetConfig.Species[petData.SpeciesId]
 	model:SetAttribute("SpeciesId", petData.SpeciesId)
 	model:SetAttribute("Nickname", petData.Nickname)
 	model:SetAttribute("Stage", petData.Stage)
 	model:SetAttribute("Level", petData.Level)
 	model:SetAttribute("Hunger", petData.Hunger)
 	model:SetAttribute("State", petData.State)
+	model:SetAttribute("WalkSpeed", if species then species.WalkSpeed else 10)
 end
 
--- คำนวณจุดเดินสุ่มภายใน Plot ของผู้เล่นโดยไม่หลุดออกนอกเขต
+function PetPlotBrain.GetPivotHeightAboveBottom(petModel: Model): number
+	local pivotY = petModel:GetPivot().Position.Y
+	local lowestY = math.huge
+
+	for _, descendant in petModel:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Transparency < 1 then
+			local cf = descendant.CFrame
+			local half = descendant.Size * 0.5
+			local extentY = math.abs(cf.XVector.Y) * half.X
+				+ math.abs(cf.YVector.Y) * half.Y
+				+ math.abs(cf.ZVector.Y) * half.Z
+			local partBottomY = cf.Position.Y - extentY
+			if partBottomY < lowestY then
+				lowestY = partBottomY
+			end
+		end
+	end
+
+	if lowestY == math.huge then
+		local bboxCF, bboxSize = petModel:GetBoundingBox()
+		lowestY = bboxCF.Position.Y - (bboxSize.Y * 0.5)
+	end
+
+	return pivotY - lowestY
+end
+
 function PetPlotBrain.PickRandomPointInPlot(plotModel: Model, petModel: Model): CFrame
 	local primary = plotModel.PrimaryPart
 	if not primary then
@@ -116,7 +145,7 @@ function PetPlotBrain.PickRandomPointInPlot(plotModel: Model, petModel: Model): 
 	local _, petSize = petModel:GetBoundingBox()
 	local halfX = math.max(1, (primary.Size.X * 0.5) - math.max(4, petSize.X))
 	local halfZ = math.max(1, (primary.Size.Z * 0.5) - math.max(4, petSize.Z))
-	local yOffset = (primary.Size.Y * 0.5) + (petSize.Y * 0.5)
+	local yOffset = (primary.Size.Y * 0.5) + PetPlotBrain.GetPivotHeightAboveBottom(petModel)
 
 	for _ = 1, 8 do
 		local offsetX = (math.random() * 2 - 1) * halfX
@@ -150,7 +179,6 @@ function PetPlotBrain.SyncPlayerPlotPets(player: Player, plotModel: Model?, pets
 		petsFolder = folder
 	end
 
-	-- ลบโมเดลที่ไม่ได้อยู่ในสถานะ InPlot แล้ว
 	for uid, entry in activeMap do
 		local petData = petsInstances[uid]
 		if not petData or petData.State ~= "InPlot" or not entry.Model.Parent then
@@ -161,7 +189,6 @@ function PetPlotBrain.SyncPlayerPlotPets(player: Player, plotModel: Model?, pets
 		end
 	end
 
-	-- สร้างหรืออัปเดตสัตว์เลี้ยงที่อยู่ในสถานะ InPlot
 	for uid, petData in petsInstances do
 		if petData.State ~= "InPlot" then
 			continue
@@ -173,19 +200,31 @@ function PetPlotBrain.SyncPlayerPlotPets(player: Player, plotModel: Model?, pets
 
 		local existing = activeMap[uid]
 		if existing and existing.ModelKey ~= expectedKey then
-			local prevCF = existing.Model:GetPivot()
+			local prevCF = existing.CurrentCF
+			local prevTargetCF = existing.TargetCF
+			local prevNextMoveAt = existing.NextMoveAt
+			local prevIsMoving = existing.IsMoving
 			existing.Model:Destroy()
 			activeMap[uid] = nil
 			existing = nil
 
 			local swappedModel, key = PetPlotBrain.CreatePetModel(player, petData)
+			local primary = plotModel.PrimaryPart
+			if primary then
+				local groundY = primary.Position.Y + (primary.Size.Y * 0.5) + PetPlotBrain.GetPivotHeightAboveBottom(swappedModel)
+				prevCF = CFrame.new(prevCF.Position.X, groundY, prevCF.Position.Z) * prevCF.Rotation
+				prevTargetCF = CFrame.new(prevTargetCF.Position.X, groundY, prevTargetCF.Position.Z) * prevTargetCF.Rotation
+			end
 			swappedModel:PivotTo(prevCF)
+			swappedModel:SetAttribute("MoveTarget", prevTargetCF.Position)
 			swappedModel.Parent = petsFolder
 			activeMap[uid] = {
 				Model = swappedModel,
 				ModelKey = key,
-				NextMoveAt = os.clock() + math.random(2, 5),
-				TargetCF = prevCF,
+				NextMoveAt = prevNextMoveAt,
+				CurrentCF = prevCF,
+				TargetCF = prevTargetCF,
+				IsMoving = prevIsMoving,
 			}
 			continue
 		end
@@ -194,12 +233,15 @@ function PetPlotBrain.SyncPlayerPlotPets(player: Player, plotModel: Model?, pets
 			local model, key = PetPlotBrain.CreatePetModel(player, petData)
 			local spawnCF = PetPlotBrain.PickRandomPointInPlot(plotModel, model)
 			model:PivotTo(spawnCF)
+			model:SetAttribute("MoveTarget", spawnCF.Position)
 			model.Parent = petsFolder
 			activeMap[uid] = {
 				Model = model,
 				ModelKey = key,
 				NextMoveAt = os.clock() + math.random(2, 6),
+				CurrentCF = spawnCF,
 				TargetCF = spawnCF,
+				IsMoving = false,
 			}
 		else
 			PetPlotBrain.UpdateModelAttributes(existing.Model, petData)
@@ -220,7 +262,7 @@ function PetPlotBrain.StepWandering(player: Player, plotModel: Model?, petsInsta
 			continue
 		end
 
-		local currentCF = entry.Model:GetPivot()
+		local currentCF = entry.CurrentCF
 		local delta = entry.TargetCF.Position - currentCF.Position
 		local flatDelta = Vector3.new(delta.X, 0, delta.Z)
 		local dist = flatDelta.Magnitude
@@ -235,10 +277,17 @@ function PetPlotBrain.StepWandering(player: Player, plotModel: Model?, petsInsta
 			local nextCF = if (targetLook - nextPos).Magnitude > 0.01
 				then CFrame.lookAt(nextPos, targetLook)
 				else CFrame.new(nextPos)
-			entry.Model:PivotTo(nextCF)
+			entry.CurrentCF = nextCF
+			entry.IsMoving = true
+		elseif entry.IsMoving then
+			entry.CurrentCF = entry.TargetCF
+			entry.IsMoving = false
+			entry.NextMoveAt = now + math.random(2, 6)
 		elseif now >= entry.NextMoveAt then
 			entry.TargetCF = PetPlotBrain.PickRandomPointInPlot(plotModel, entry.Model)
-			entry.NextMoveAt = now + math.random(4, 9)
+			entry.IsMoving = true
+			entry.Model:SetAttribute("WalkSpeed", speed)
+			entry.Model:SetAttribute("MoveTarget", entry.TargetCF.Position)
 		end
 	end
 end

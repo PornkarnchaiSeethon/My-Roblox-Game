@@ -104,6 +104,8 @@ export type AdminControllerLike = {
 	RefreshPlayers: () -> (),
 	GiveItemToTarget: (targetUserId: number, itemId: string, amount: number) -> (),
 	GiveItemToSelf: (itemId: string, amount: number) -> (),
+	SpawnPetToTarget: (targetUserId: number, speciesId: string, stage: string, amount: number, initialState: string?) -> (),
+	SpawnPetToSelf: (speciesId: string, stage: string, amount: number, initialState: string?) -> (),
 	SetSelfWalkSpeed: (walkSpeed: number) -> (),
 	ClearToast: () -> (),
 }
@@ -137,7 +139,6 @@ local runtimePlantClient: PlantControllerLike? = nil
 local runtimeAdminClient: AdminControllerLike? = nil
 local runtimeNPCClient: NPCControllerLike? = nil
 
--- ดึง Client แบบไม่ Yield (ปลอดภัยสำหรับเรียกตอน Render)
 local function tryGetRuntimeClient(): InventoryController?
 	if runtimeClient then
 		return runtimeClient
@@ -293,7 +294,6 @@ local function MainFrame(props: Props?)
 	local _, setAdminRevision = React.useState(0)
 	local npcToast, setNpcToast = React.useState(if npcClient and npcClient.State then npcClient.State.LastToast else nil)
 
-	-- ถ้ารอบแรกยังหา InventoryClient ไม่เจอ ให้รอโหลดใน useEffect แทนการบล็อก Render
 	React.useEffect(function()
 		if props and props.client then
 			setClient(props.client)
@@ -324,7 +324,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.client })
 
-	-- รอโหลด PetController แบบไม่บล็อก Render
 	React.useEffect(function()
 		if props and props.petClient then
 			setPetClient(props.petClient)
@@ -354,7 +353,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.petClient })
 
-	-- รอโหลด PlantController แบบไม่บล็อก Render
 	React.useEffect(function()
 		if props and props.plantClient then
 			setPlantClient(props.plantClient)
@@ -384,7 +382,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.plantClient })
 
-	-- รอโหลด AdminController แบบไม่บล็อก Render
 	React.useEffect(function()
 		if props and props.adminClient then
 			setAdminClient(props.adminClient)
@@ -414,7 +411,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.adminClient })
 
-	-- รอโหลด NPCController แบบไม่บล็อก Render
 	React.useEffect(function()
 		if props and props.npcClient then
 			setNpcClient(props.npcClient)
@@ -444,7 +440,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { props and props.npcClient })
 
-	-- Sync ข้อมูล Inventory และ Subscribe
 	React.useEffect(function()
 		if not client then
 			return
@@ -463,7 +458,6 @@ local function MainFrame(props: Props?)
 		end)
 	end, { client })
 
-	-- Subscribe ข้อมูลสัตว์เลี้ยงจาก PetController
 	React.useEffect(function()
 		if not petClient then
 			return
@@ -476,7 +470,6 @@ local function MainFrame(props: Props?)
 		end)
 	end, { petClient })
 
-	-- Subscribe ข้อมูลแปลงผักจาก PlantController
 	React.useEffect(function()
 		if not plantClient then
 			return
@@ -489,7 +482,6 @@ local function MainFrame(props: Props?)
 		end)
 	end, { plantClient })
 
-	-- Subscribe ข้อมูล Admin Panel จาก AdminController
 	React.useEffect(function()
 		if not adminClient then
 			return
@@ -502,7 +494,6 @@ local function MainFrame(props: Props?)
 		end)
 	end, { adminClient })
 
-	-- Subscribe เฉพาะ Toast จาก NPCController (Boss/Dialogue จัดการในคอมโพเนนต์ลูกเพื่อลดการ Re-render)
 	React.useEffect(function()
 		if not npcClient then
 			setNpcToast(nil)
@@ -527,7 +518,6 @@ local function MainFrame(props: Props?)
 		end
 	end, { adminClient })
 
-	-- ปิดหน้าต่างหลักอื่นอัตโนมัติเมื่อเปิด Admin Panel (รวมถึงการกดปุ่มลัด [M])
 	React.useEffect(function()
 		if not adminOpen then
 			return
@@ -842,6 +832,8 @@ local function MainFrame(props: Props?)
 			OnRefreshPlayers = adminClient.RefreshPlayers,
 			OnGiveItemToSelf = adminClient.GiveItemToSelf,
 			OnGiveItemToTarget = adminClient.GiveItemToTarget,
+			OnSpawnPetToSelf = adminClient.SpawnPetToSelf,
+			OnSpawnPetToTarget = adminClient.SpawnPetToTarget,
 			OnSetSelfWalkSpeed = adminClient.SetSelfWalkSpeed,
 			OnClose = handleCloseAdminPanel,
 		}),

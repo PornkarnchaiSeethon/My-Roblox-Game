@@ -241,7 +241,6 @@ function AnimController.CleanupRig(rig: Model)
 	rigCaches[rig] = nil
 end
 
--- Backward-compatible APIs for PetService and legacy callers
 function AnimController.LoadAnimation(rig: Model, animName: string, animationId: string): AnimationTrack?
 	return AnimController.LoadTrack(rig, animName, animationId)
 end

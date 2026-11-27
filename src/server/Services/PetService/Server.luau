@@ -1,4 +1,5 @@
 --!strict
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -163,6 +164,94 @@ function PetService:SyncToClient(player: Player)
 	end
 	local petsData = ensurePetsProfile(profile)
 	Network.PetNetwork.SyncState.sendTo(buildClientPayload(petsData), player)
+end
+
+function PetService:GrantPets(
+	targetPlayer: Player,
+	speciesId: string,
+	stage: string?,
+	amount: number,
+	initialState: string?
+): (number, string, { any })
+	local speciesDef = PetConfig.Species[speciesId]
+	if not speciesDef then
+		return 0, "ไม่พบสายพันธุ์สัตว์เลี้ยงนี้ใน PetConfig", {}
+	end
+
+	if typeof(amount) ~= "number" or amount ~= amount or math.abs(amount) == math.huge then
+		return 0, "จำนวนสัตว์เลี้ยงไม่ถูกต้อง", {}
+	end
+
+	local resolvedStage = if stage == "Baby" or stage == "Juvenile" or stage == "Adult" or stage == "Evolved"
+		then stage
+		else "Baby"
+	local resolvedState = if initialState == "InPlot" or initialState == "Stored"
+		then initialState
+		else "InPlot"
+
+	local profile = DataService.GetProfile(targetPlayer)
+	if not profile then
+		return 0, "ข้อมูลโปรไฟล์ของผู้เล่นยังไม่พร้อมใช้งาน", {}
+	end
+
+	local petsData = ensurePetsProfile(profile)
+	local currentCount = 0
+	for _ in petsData.Instances do
+		currentCount += 1
+	end
+
+	local maxCapacity = petsData.MaxPetCapacity or PetConfig.DefaultMaxPetCapacity
+	local remaining = math.max(0, maxCapacity - currentCount)
+	if remaining == 0 then
+		return 0, "ความจุสัตว์เลี้ยงของ " .. targetPlayer.DisplayName .. " เต็มแล้ว (" .. tostring(maxCapacity) .. " ตัว)", {}
+	end
+
+	local toGrant = math.min(math.max(1, math.floor(amount)), remaining)
+	local thresholds = speciesDef.StageThresholds
+	local growthExp = 0
+	if resolvedStage == "Juvenile" then
+		growthExp = if thresholds and type(thresholds.Juvenile) == "number" then thresholds.Juvenile else 100
+	elseif resolvedStage == "Adult" then
+		growthExp = if thresholds and type(thresholds.Adult) == "number" then thresholds.Adult else 350
+	elseif resolvedStage == "Evolved" then
+		growthExp = if thresholds and type(thresholds.Evolved) == "number" then thresholds.Evolved else 800
+	end
+	local level = math.clamp(1 + math.floor(math.sqrt(growthExp / 25)), 1, 100)
+
+	local createdPets: { any } = {}
+	local now = os.time()
+	for _ = 1, toGrant do
+		local newUID = HttpService:GenerateGUID(false)
+		local potentialBonus = math.round((1.0 + math.random() * 0.12) * 100) / 100
+		local newPet = {
+			UID = newUID,
+			SpeciesId = speciesId,
+			Nickname = speciesDef.DisplayName,
+			Stage = resolvedStage,
+			Level = level,
+			GrowthExp = growthExp,
+			Hunger = PetConfig.MaxHunger,
+			PotentialBonus = potentialBonus,
+			State = resolvedState,
+			LastFedAt = now,
+			BreedCooldownUntil = 0,
+		}
+		petsData.Instances[newUID] = newPet
+		table.insert(createdPets, newPet)
+	end
+
+	self:SyncPlayerModels(targetPlayer)
+	self:SyncToClient(targetPlayer)
+
+	if createdPets[1] then
+		Network.PetNetwork.PetVisualEvent.sendToAll({
+			PetUID = createdPets[1].UID,
+			EventType = "Hatch",
+			TargetPos = nil,
+		})
+	end
+
+	return #createdPets, speciesDef.DisplayName, createdPets
 end
 
 function PetService.Client:GetPetsState(player: Player)
@@ -401,7 +490,6 @@ function PetService:KnitStart()
 		end
 	end)
 
-	-- ลูปจำลองพฤติกรรมสัตว์เลี้ยงในฟาร์มและผู้ช่วยต่อสู้แบบประหยัดทรัพยากร
 	task.spawn(function()
 		local lastHungerCheck = os.time()
 		while true do

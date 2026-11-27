@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local AdminConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("AdminConfig"))
+local PetConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("PetConfig"))
 local ToolConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("ToolConfig"))
 local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 
@@ -61,8 +62,27 @@ local function getHumanoid(player: Player): Humanoid?
 	return character:FindFirstChildOfClass("Humanoid")
 end
 
+local CRITICAL_AUDIT_ACTIONS: { [string]: boolean } = {
+	GiveItem = true,
+	SelfGiveItem = true,
+	SpawnPet = true,
+	SelfSpawnPet = true,
+}
+
+local VALID_PET_STAGES: { [string]: boolean } = {
+	Baby = true,
+	Juvenile = true,
+	Adult = true,
+	Evolved = true,
+}
+
+local VALID_PET_STATES: { [string]: boolean } = {
+	InPlot = true,
+	Stored = true,
+}
+
 local function isCriticalAuditAction(action: string): boolean
-	return action == "GiveItem" or action == "SelfGiveItem"
+	return CRITICAL_AUDIT_ACTIONS[action] == true
 end
 
 function AdminActionExecutor.RecordAudit(adminName: string, action: string, targetName: string, detail: string)
@@ -390,6 +410,86 @@ function AdminActionExecutor.SpawnItems(
 	local msg = string.format("เสก %s x%d ให้ %s สำเร็จ", displayName, granted, targetLabel)
 	if granted < amount then
 		msg ..= string.format(" (ได้ %d/%d ชิ้น เนื่องจากกระเป๋าเต็ม)", granted, amount)
+	end
+
+	return true, msg, targetPlayer
+end
+
+function AdminActionExecutor.SpawnPets(
+	adminPlayer: Player,
+	targetUserId: any,
+	speciesId: any,
+	stage: any,
+	rawAmount: any,
+	initialState: any,
+	petService: any,
+	dataService: any
+): (boolean, string, Player?)
+	if typeof(speciesId) ~= "string" or speciesId == "" or #speciesId > 64 then
+		return false, "รหัสสายพันธุ์สัตว์เลี้ยงไม่ถูกต้อง", nil
+	end
+	if not isFiniteNumber(targetUserId) then
+		return false, "รหัสผู้เล่นเป้าหมายไม่ถูกต้อง", nil
+	end
+	if not isFiniteNumber(rawAmount) then
+		return false, "จำนวนสัตว์เลี้ยงไม่ถูกต้อง", nil
+	end
+
+	local speciesDef = PetConfig.Species[speciesId]
+	if not speciesDef then
+		return false, "ไม่พบสายพันธุ์ " .. speciesId .. " ใน PetConfig", nil
+	end
+
+	if typeof(stage) ~= "string" or not VALID_PET_STAGES[stage] then
+		return false, "ระดับการเติบโต (Stage) ไม่ถูกต้อง", nil
+	end
+
+	local resolvedState = "InPlot"
+	if initialState ~= nil and initialState ~= "" then
+		if typeof(initialState) ~= "string" or not VALID_PET_STATES[initialState] then
+			return false, "โหมดสถานะเริ่มต้น (InitialState) ไม่ถูกต้อง", nil
+		end
+		resolvedState = initialState
+	end
+
+	local targetPlayer = Players:GetPlayerByUserId(math.floor(targetUserId))
+	if not targetPlayer then
+		return false, "ไม่พบผู้เล่นเป้าหมายในเซิร์ฟเวอร์", nil
+	end
+
+	local targetProfile = dataService.GetProfile(targetPlayer)
+	if not targetProfile then
+		return false, "ข้อมูลโปรไฟล์ของ " .. targetPlayer.DisplayName .. " ยังไม่พร้อมใช้งาน", targetPlayer
+	end
+
+	local amount = math.clamp(math.floor(rawAmount), 1, AdminConfig.MaxPetSpawnAmountPerAction or 10)
+	local callOk, granted, displayNameOrErr = pcall(function()
+		return petService:GrantPets(targetPlayer, speciesId, stage, amount, resolvedState)
+	end)
+	if not callOk then
+		warn("[AdminActionExecutor] GrantPets failed for", targetPlayer.Name, speciesId, granted)
+		return false, "ไม่สามารถเสกสัตว์เลี้ยงได้", targetPlayer
+	end
+	if type(granted) ~= "number" or granted <= 0 then
+		local errMsg = if type(displayNameOrErr) == "string" and displayNameOrErr ~= ""
+			then displayNameOrErr
+			else "ไม่สามารถเสกสัตว์เลี้ยงได้"
+		return false, errMsg, targetPlayer
+	end
+
+	local displayName = if type(displayNameOrErr) == "string" and displayNameOrErr ~= ""
+		then displayNameOrErr
+		else (speciesDef.DisplayName or speciesId)
+	local actionName = if adminPlayer == targetPlayer then "SelfSpawnPet" else "SpawnPet"
+	local auditDetail = if granted < amount
+		then string.format("%s (%s) [%s/%s] x%d/%d", displayName, speciesId, stage, resolvedState, granted, amount)
+		else string.format("%s (%s) [%s/%s] x%d", displayName, speciesId, stage, resolvedState, granted)
+	AdminActionExecutor.RecordAudit(adminPlayer.Name, actionName, targetPlayer.Name, auditDetail)
+
+	local targetLabel = if adminPlayer == targetPlayer then "ตัวเอง" else targetPlayer.DisplayName
+	local msg = string.format("เสกสัตว์เลี้ยง %s (%s) x%d ให้ %s สำเร็จ", displayName, stage, granted, targetLabel)
+	if granted < amount then
+		msg ..= string.format(" (ได้ %d/%d ตัว เนื่องจากความจุสัตว์เลี้ยงเต็ม)", granted, amount)
 	end
 
 	return true, msg, targetPlayer

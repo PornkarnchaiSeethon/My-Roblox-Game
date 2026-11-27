@@ -25,7 +25,6 @@ local function AdminSpawnerTab(props: AdminSpawnerTabProps)
 	local spawnAmount, setSpawnAmount = React.useState(1)
 	local categoryFilter, setCategoryFilter = React.useState("All")
 
-	-- แคชรายการไอเทมเรียงตาม ID เพื่อลดการเรียงซ้ำขณะพิมพ์ค้นหา
 	local sortedItemIds = React.useMemo(function(): { string }
 		local ids: { string } = {}
 		for itemId in ToolConfig.Items do
@@ -35,7 +34,6 @@ local function AdminSpawnerTab(props: AdminSpawnerTabProps)
 		return ids
 	end, {})
 
-	-- ปุ่มเลือกจำนวนเสก
 	local amountButtons: { [string]: any } = {
 		Layout = e("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -71,7 +69,6 @@ local function AdminSpawnerTab(props: AdminSpawnerTabProps)
 		})
 	end
 
-	-- ปุ่มกรองหมวดหมู่
 	local categoryButtons: { [string]: any } = {
 		Layout = e("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,

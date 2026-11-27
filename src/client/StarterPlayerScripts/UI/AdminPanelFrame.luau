@@ -8,12 +8,13 @@ local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 local AdminTabs = script.Parent.Components:WaitForChild("Admin")
 local AdminPlayersTab = require(AdminTabs:WaitForChild("AdminPlayersTab"))
 local AdminSpawnerTab = require(AdminTabs:WaitForChild("AdminSpawnerTab"))
+local AdminPetSpawnerTab = require(AdminTabs:WaitForChild("AdminPetSpawnerTab"))
 local AdminSelfSpeedTab = require(AdminTabs:WaitForChild("AdminSelfSpeedTab"))
 local AdminAuditLogTab = require(AdminTabs:WaitForChild("AdminAuditLogTab"))
 
 local e = React.createElement
 
-export type AdminTab = "Players" | "Spawner" | "SelfSpeed" | "AuditLog"
+export type AdminTab = "Players" | "Spawner" | "PetSpawner" | "SelfSpeed" | "AuditLog"
 
 export type AdminPanelProps = {
 	ActiveTab: AdminTab,
@@ -28,15 +29,18 @@ export type AdminPanelProps = {
 	OnRefreshPlayers: () -> (),
 	OnGiveItemToSelf: (string, number) -> (),
 	OnGiveItemToTarget: (number, string, number) -> (),
+	OnSpawnPetToSelf: (string, string, number, string) -> (),
+	OnSpawnPetToTarget: (number, string, string, number, string) -> (),
 	OnSetSelfWalkSpeed: (number) -> (),
 	OnClose: () -> (),
 }
 
 local TABS: { { Id: AdminTab, Label: string } } = {
-	{ Id = "Players", Label = "ข้อมูลผู้เล่น (Players)" },
-	{ Id = "Spawner", Label = "เสกไอเทม (Item Spawner)" },
-	{ Id = "SelfSpeed", Label = "ความเร็วตัวเอง (Speed)" },
-	{ Id = "AuditLog", Label = "ประวัติ (Audit Log)" },
+	{ Id = "Players", Label = "ผู้เล่น (Players)" },
+	{ Id = "Spawner", Label = "เสกไอเทม (Items)" },
+	{ Id = "PetSpawner", Label = "เสกสัตว์เลี้ยง (Pets)" },
+	{ Id = "SelfSpeed", Label = "ความเร็ว (Speed)" },
+	{ Id = "AuditLog", Label = "ประวัติ (Audit)" },
 }
 
 local function AdminPanelFrame(props: AdminPanelProps)
@@ -44,11 +48,13 @@ local function AdminPanelFrame(props: AdminPanelProps)
 	local handleOpenSpawner = React.useCallback(function()
 		onSelectTab("Spawner")
 	end, { onSelectTab })
+	local handleOpenPetSpawner = React.useCallback(function()
+		onSelectTab("PetSpawner")
+	end, { onSelectTab })
 
 	local localPlayer = Players.LocalPlayer
 	local localUserId = if localPlayer then localPlayer.UserId else 0
 
-	-- หาชื่อเป้าหมายปัจจุบันสำหรับส่งให้หน้า Spawner
 	local targetUserId = props.SelectedUserId
 	local targetDisplayName = ""
 	if props.SelectedDetail and props.SelectedDetail.UserId == targetUserId then
@@ -73,7 +79,6 @@ local function AdminPanelFrame(props: AdminPanelProps)
 		end
 	end
 
-	-- แถบปุ่มสลับ 4 แท็บ
 	local tabBarChildren: { [string]: any } = {
 		Layout = e("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -112,7 +117,6 @@ local function AdminPanelFrame(props: AdminPanelProps)
 		})
 	end
 
-	-- Mount เฉพาะแท็บที่เปิดใช้งานอยู่เพื่อลดต้นทุนการ Re-render
 	local bodyContent: any
 	if props.ActiveTab == "Players" then
 		bodyContent = e(AdminPlayersTab, {
@@ -122,6 +126,7 @@ local function AdminPanelFrame(props: AdminPanelProps)
 			LocalUserId = localUserId,
 			OnSelectPlayer = props.OnSelectPlayer,
 			OnOpenSpawner = handleOpenSpawner,
+			OnOpenPetSpawner = handleOpenPetSpawner,
 		})
 	elseif props.ActiveTab == "Spawner" then
 		bodyContent = e(AdminSpawnerTab, {
@@ -130,6 +135,13 @@ local function AdminPanelFrame(props: AdminPanelProps)
 			MissingStudioItems = props.MissingStudioItems,
 			OnGiveItemToSelf = props.OnGiveItemToSelf,
 			OnGiveItemToTarget = props.OnGiveItemToTarget,
+		})
+	elseif props.ActiveTab == "PetSpawner" then
+		bodyContent = e(AdminPetSpawnerTab, {
+			TargetUserId = targetUserId,
+			TargetDisplayName = targetDisplayName,
+			OnSpawnPetToSelf = props.OnSpawnPetToSelf,
+			OnSpawnPetToTarget = props.OnSpawnPetToTarget,
 		})
 	elseif props.ActiveTab == "SelfSpeed" then
 		bodyContent = e(AdminSelfSpeedTab, {

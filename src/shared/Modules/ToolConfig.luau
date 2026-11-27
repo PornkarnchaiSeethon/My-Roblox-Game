@@ -20,7 +20,6 @@ ToolConfig.MaxStackByType = {
 	Resource = 10,
 } :: { [string]: number }
 
--- Add tool-specific data here. The key must match the Tool.Name.
 ToolConfig.Items = {
 	normal_Sword = {
 		DisplayName = "Normal Sword",

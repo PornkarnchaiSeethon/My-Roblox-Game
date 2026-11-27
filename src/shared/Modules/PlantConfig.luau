@@ -37,7 +37,7 @@ local PlantConfig = {}
 
 PlantConfig.SprinklerRadiusStuds = 12
 PlantConfig.InteractDistanceStuds = 24
-PlantConfig.NaturePetAuraBonus = 0.10 -- +10% ความเร็วเติบโตเมื่อมี sprout_slime เดินใน Plot
+PlantConfig.NaturePetAuraBonus = 0.10
 
 PlantConfig.Planters = {
 	wooden_planter = {

@@ -2,7 +2,6 @@
 
 local Types = {}
 
-
 export type Hotbar = {
 	Slot1: number?,
 	Slot2: number?,

@@ -8,7 +8,7 @@ local Network = require(ReplicatedStorage.Shared.Modules:WaitForChild("Network")
 local AdminConfig = require(ReplicatedStorage.Shared.Modules:WaitForChild("AdminConfig"))
 local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 
-export type AdminTab = "Players" | "Spawner" | "SelfSpeed" | "AuditLog"
+export type AdminTab = "Players" | "Spawner" | "PetSpawner" | "SelfSpeed" | "AuditLog"
 
 local function getLocalUserId(): number
 	local player = Players.LocalPlayer
@@ -148,6 +148,43 @@ function AdminController.GiveItemToSelf(itemId: string, amount: number)
 		return
 	end
 	AdminController.GiveItemToTarget(localUserId, itemId, amount)
+end
+
+function AdminController.SpawnPetToTarget(
+	targetUserId: number,
+	speciesId: string,
+	stage: string,
+	amount: number,
+	initialState: string?
+)
+	if not AdminController.State.IsAdmin then
+		return
+	end
+	if targetUserId ~= targetUserId or math.abs(targetUserId) == math.huge then
+		return
+	end
+	if amount ~= amount or math.abs(amount) == math.huge then
+		return
+	end
+	local maxPerAction = AdminConfig.MaxPetSpawnAmountPerAction or 10
+	local clampedAmount = math.clamp(math.floor(amount), 1, maxPerAction)
+	local resolvedState = if initialState and initialState ~= "" then initialState else "InPlot"
+
+	Network.AdminNetwork.SpawnPet.send({
+		TargetUserId = targetUserId,
+		SpeciesId = speciesId,
+		Stage = stage,
+		Amount = clampedAmount,
+		InitialState = resolvedState,
+	})
+end
+
+function AdminController.SpawnPetToSelf(speciesId: string, stage: string, amount: number, initialState: string?)
+	local localUserId = getLocalUserId()
+	if localUserId == 0 then
+		return
+	end
+	AdminController.SpawnPetToTarget(localUserId, speciesId, stage, amount, initialState)
 end
 
 function AdminController.SetSelfWalkSpeed(walkSpeed: number)

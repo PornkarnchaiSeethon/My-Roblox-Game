@@ -95,7 +95,15 @@ function PlotStorage.load(player: Player)
 		for _, callback in plotLoadedCallbacks do
 			task.spawn(callback, player, plot)
 		end
+	else
+		PlotManager.removePlot(player)
+		finishPlayer(player)
 	end
+end
+
+function PlotStorage.cleanup(player: Player)
+	PlotManager.removePlot(player)
+	finishPlayer(player)
 end
 
 function PlotStorage.save(player: Player, profileOverride)

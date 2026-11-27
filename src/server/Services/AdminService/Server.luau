@@ -10,6 +10,7 @@ local Types = require(ReplicatedStorage.Shared.Modules:WaitForChild("Types"))
 
 local DataService = require(script.Parent.Parent.DataService.DataService)
 local InventoryService = require(script.Parent.Parent.DataService.InventoryService)
+local PetService = require(script.Parent.Parent.PetService.Server)
 
 local AdminAuthManager = require(script.Parent.AdminAuthManager)
 local AdminActionExecutor = require(script.Parent.AdminActionExecutor)
@@ -367,6 +368,58 @@ function AdminService:KnitStart()
 				Network.AdminNetwork.NotifyToast.sendTo({
 					IsError = false,
 					Message = "ผู้ดูแลระบบ " .. player.DisplayName .. " ได้มอบไอเทมเข้ากระเป๋าของคุณแล้ว",
+				}, targetPlayer)
+			end
+
+			if targetPlayer and targetPlayer:IsDescendantOf(Players) then
+				self:SendPlayerDetailToAdmin(player, targetPlayer)
+			end
+			self:BroadcastPlayerListToAdmins()
+			if ok then
+				self:BroadcastAuditLogsToAdmins()
+			end
+		end)
+	end)
+
+	Network.AdminNetwork.SpawnPet.listen(function(data, player)
+		if not verifyAdminAccess(player, "SpawnPet") then
+			return
+		end
+		if not consumeMutationToken(player) then
+			Network.AdminNetwork.NotifyToast.sendTo({
+				IsError = true,
+				Message = "ส่งคำสั่งเร็วเกินไป กรุณารอสักครู่",
+			}, player)
+			return
+		end
+
+		withAdminLock(player, function()
+			local targetUserId = if type(data) == "table" then data.TargetUserId else nil
+			local speciesId = if type(data) == "table" then data.SpeciesId else nil
+			local stage = if type(data) == "table" then data.Stage else nil
+			local amount = if type(data) == "table" then data.Amount else nil
+			local initialState = if type(data) == "table" then data.InitialState else nil
+
+			local ok, msg, targetPlayer = AdminActionExecutor.SpawnPets(
+				player,
+				targetUserId,
+				speciesId,
+				stage,
+				amount,
+				initialState,
+				PetService,
+				DataService
+			)
+
+			Network.AdminNetwork.NotifyToast.sendTo({
+				IsError = not ok,
+				Message = msg,
+			}, player)
+
+			if ok and targetPlayer and targetPlayer ~= player and targetPlayer:IsDescendantOf(Players) then
+				Network.AdminNetwork.NotifyToast.sendTo({
+					IsError = false,
+					Message = "ผู้ดูแลระบบ " .. player.DisplayName .. " ได้เสกสัตว์เลี้ยงให้คุณแล้ว",
 				}, targetPlayer)
 			end
 

@@ -15,7 +15,7 @@ local PlantPlotManager = require(script.Parent.PlantPlotManager)
 
 local PlantService = Knit.CreateService({
 	Name = "PlantService",
-	Client = {}, -- ใช้ ByteNet (PlantNetwork) เป็นช่องทางสื่อสารเดียวตามมาตรฐานสถาปัตยกรรม
+	Client = {},
 })
 
 local lastPacketAt: { [Player]: number } = {}
@@ -458,7 +458,6 @@ function PlantService:KnitStart()
 		end)
 	end)
 
-	-- ลูปจำลองการเติบโตและสปริงเกลอร์ทุก 1.0 วินาที
 	task.spawn(function()
 		while true do
 			task.wait(SIM_STEP)

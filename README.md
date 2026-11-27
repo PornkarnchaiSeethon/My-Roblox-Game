@@ -235,9 +235,11 @@ src/client/StarterPlayerScripts/UI/
     ├── PetCard.luau              -- การ์ดแสดงสัตว์เลี้ยง (ระดับความหายาก, Stage, เลเวล, หลอดอาหาร)
     ├── CropCard.luau             -- การ์ดแสดงข้อมูลพืช (ระดับความหายาก, เวลาโต, ผลผลิต, จำนวนเมล็ด/สถิติเก็บเกี่ยว)
     ├── AdminItemSpawnCard.luau   -- การ์ดเสกไอเทมในหน้า Admin Spawner (เสกให้ตัวเอง/เป้าหมาย พร้อมเตือนเมื่อขาด Tool ใน Studio)
+    ├── AdminPetSpawnCard.luau    -- การ์ดเสกสัตว์เลี้ยงในหน้า Admin Pet Spawner (แถบสี Rarity, พรีวิว Lv/HP/ATK, เสกให้ตัวเอง/เป้าหมาย)
     ├── Admin/                    -- คอมโพเนนต์แท็บย่อยของ Admin Panel (ห่อด้วย `React.memo` ทุกแท็บ)
     │   ├── AdminPlayersTab.luau  -- แท็บ Players: รายชื่อผู้เล่นออนไลน์, ข้อมูลเชิงลึก และรายการไอเทมในกระเป๋า
     │   ├── AdminSpawnerTab.luau  -- แท็บ Item Spawner: ค้นหา/กรองหมวดหมู่, เลือกจำนวน และเสกไอเทมผ่าน `AdminItemSpawnCard`
+    │   ├── AdminPetSpawnerTab.luau -- แท็บ Pet Spawner: ค้นหา/กรอง Rarity, เลือก Stage/จำนวน/โหมด (`InPlot`/`Stored`) และเสกสัตว์เลี้ยงผ่าน `AdminPetSpawnCard`
     │   ├── AdminSelfSpeedTab.luau -- แท็บ Self Speed: ปุ่ม Preset และช่องกรอกความเร็วเดินเองพร้อมตรวจ `NaN`/`inf`
     │   └── AdminAuditLogTab.luau -- แท็บ Audit Log: แสดงประวัติคำสั่ง Admin (รวม Critical + General Buffer)
     ├── NPCBossBar.luau           -- แถบพลังชีวิตบอสและสถานะการร่ายสกิลด้านบนหน้าจอ (Subscribe ผ่าน `SubscribeBosses` ในตัว)
@@ -343,26 +345,28 @@ ReplicatedStorage
 
 ## 🛡️ AdminSystem (ระบบผู้ดูแลระบบและหน้าต่างควบคุม)
 
-ระบบผู้ดูแลระบบทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`AdminNetwork`)**, **DataService**, **InventoryService** และ **ToolConfig**:
+ระบบผู้ดูแลระบบทำงานแบบ Server-Authoritative ร่วมกับ **Knit**, **ByteNet (`AdminNetwork`)**, **DataService**, **InventoryService**, **PetService** และ **ToolConfig**:
 
 | ไฟล์ | ฝั่ง | หน้าที่ |
 | --- | --- | --- |
-| `shared/Modules/AdminConfig.luau` | Shared | ตั้งค่าสิทธิ์แอดมิน (`AllowCreator`, `AllowStudioAccess`, `AuthCacheTTLSeconds = 90`, `StudioNonAdminTestUserIds`, `AdminUserIds`, `GroupConfig`), โหมดสร้าง Dummy Tool ใน Studio (`AutoCreateStudioDummyTools`), ช่วงความเร็วเดิน (`MinWalkSpeed = 4`, `MaxWalkSpeed = 120`, `SpeedPresets`), จำนวนเสกสูงสุดต่อครั้ง (`99`) และขนาด Audit Log (`MaxAuditLogEntries = 50`, `MaxCriticalAuditLogEntries = 50`) |
+| `shared/Modules/AdminConfig.luau` | Shared | ตั้งค่าสิทธิ์แอดมิน (`AllowCreator`, `AllowStudioAccess`, `AuthCacheTTLSeconds = 90`, `StudioNonAdminTestUserIds`, `AdminUserIds`, `GroupConfig`), โหมดสร้าง Dummy Tool ใน Studio (`AutoCreateStudioDummyTools`), ช่วงความเร็วเดิน (`MinWalkSpeed = 4`, `MaxWalkSpeed = 120`, `SpeedPresets`), จำนวนเสกสูงสุดต่อครั้ง (`MaxSpawnAmountPerAction = 99`, `MaxPetSpawnAmountPerAction = 10`) และขนาด Audit Log (`MaxAuditLogEntries = 50`, `MaxCriticalAuditLogEntries = 50`) |
 | `shared/Modules/Types.luau` | Shared | ประกาศชนิดข้อมูล `AdminPlayerSummary`, `AdminStackItem`, `AdminPlayerDetail`, `AdminAuditEntry`, `AdminToastInfo` |
 | `server/Services/AdminService/Server.luau` | Server | Knit Service (`"AdminService"`) รับคำสั่ง `AdminNetwork`, ตรวจสิทธิ์พร้อม Live Revocation (`verifyAdminAccess`) ทุก Packet, Rate Limiting (`READ_RATE_LIMIT = 0.40s` ต่อ Action + Token Bucket สำหรับ Mutation), Action Lock, แยกส่ง `SyncAuditLogs` แบบ On-Demand และคงค่า `BaseWalkSpeed` (คำนวณร่วมกับ `ActiveSlowMultiplier`) เมื่อตัวละครเกิดใหม่ |
 | `server/Services/AdminService/AdminAuthManager.luau` | Server | ตรวจสอบสิทธิ์แอดมิน (Studio พร้อมข้อยกเว้น `StudioNonAdminTestUserIds`, Creator, `AdminUserIds`, Group Rank) พร้อม Cache แบบมี TTL (`AuthCacheTTLSeconds`) และล้างเมื่อผู้เล่นออก |
-| `server/Services/AdminService/AdminActionExecutor.luau` | Server | สร้างสรุป/รายละเอียดผู้เล่น, เสกไอเทมแบบ Batch ผ่าน `InventoryService.GiveItems`, ปรับความเร็วผ่าน `BaseWalkSpeed` ร่วมกับ `ActiveSlowMultiplier` (ล้าง Override เมื่อรีเซ็ตเป็นค่าเริ่มต้น), สร้าง Dummy Tool ใน Studio เมื่อเปิดใช้งาน, ตรวจสอบไอเทมที่ขาดใน `ServerStorage.AllItems` และบันทึก Audit Log แยก Ring Buffer (Critical vs General) พร้อม Log ออก Server Console (`warn`/`print`) |
+| `server/Services/AdminService/AdminActionExecutor.luau` | Server | สร้างสรุป/รายละเอียดผู้เล่น, เสกไอเทมแบบ Batch ผ่าน `InventoryService.GiveItems`, เสกสัตว์เลี้ยงผ่าน `PetService:GrantPets`, ปรับความเร็วผ่าน `BaseWalkSpeed` ร่วมกับ `ActiveSlowMultiplier` (ล้าง Override เมื่อรีเซ็ตเป็นค่าเริ่มต้น), สร้าง Dummy Tool ใน Studio เมื่อเปิดใช้งาน, ตรวจสอบไอเทมที่ขาดใน `ServerStorage.AllItems` และบันทึก Audit Log แยก Ring Buffer (Critical vs General) พร้อม Log ออก Server Console (`warn`/`print`) |
 | `client/StarterPlayerScripts/AdminService/AdminController.luau` | Client | Knit Controller (`"AdminController"`) เก็บ State แบบ Observer, ซิงก์สิทธิ์/ล้าง State ทันทีเมื่อถูกถอดสิทธิ์, โหลด `AuditLogs` แบบ On-Demand เมื่อเปิดแท็บ `AuditLog` และผูกปุ่มลัด `M` (เฉพาะผู้ดูแลระบบ) |
-| `client/StarterPlayerScripts/UI/AdminPanelFrame.luau` | Client | หน้าต่าง Shell `ADMIN CONTROL PANEL [M]` (`React.memo`) ที่ Mount เฉพาะแท็บที่ใช้งานอยู่ (`AdminPlayersTab`, `AdminSpawnerTab`, `AdminSelfSpeedTab`, `AdminAuditLogTab`) |
-| `client/StarterPlayerScripts/UI/Components/Admin/*.luau` | Client | แท็บย่อยทั้ง 4 แท็บที่ห่อด้วย `React.memo` (`AdminPlayersTab`, `AdminSpawnerTab`, `AdminSelfSpeedTab`, `AdminAuditLogTab`) ลดการ Re-render ข้ามแท็บ |
+| `client/StarterPlayerScripts/UI/AdminPanelFrame.luau` | Client | หน้าต่าง Shell `ADMIN CONTROL PANEL [M]` (`React.memo`) ที่ Mount เฉพาะแท็บที่ใช้งานอยู่ทั้ง 5 แท็บ (`Players`, `Spawner`, `PetSpawner` / `เสกสัตว์เลี้ยง (Pets)`, `SelfSpeed`, `AuditLog`) |
+| `client/StarterPlayerScripts/UI/Components/Admin/*.luau` | Client | แท็บย่อยทั้ง 5 แท็บที่ห่อด้วย `React.memo` (`AdminPlayersTab`, `AdminSpawnerTab`, `AdminPetSpawnerTab`, `AdminSelfSpeedTab`, `AdminAuditLogTab`) ลดการ Re-render ข้ามแท็บ |
 | `client/StarterPlayerScripts/UI/Components/AdminItemSpawnCard.luau` | Client | การ์ดรายการไอเทมสำหรับเสกให้ตัวเองหรือผู้เล่นเป้าหมาย พร้อมแจ้งเตือนและปิดปุ่มหากขาด Tool ใน `ServerStorage.AllItems` |
+| `client/StarterPlayerScripts/UI/Components/AdminPetSpawnCard.luau` | Client | การ์ดสายพันธุ์สัตว์เลี้ยงสำหรับแท็บ `เสกสัตว์เลี้ยง (Pets)` แสดงแถบสี Rarity, พรีวิว Lv/HP/ATK ตาม Stage และปุ่มเสกให้ตัวเอง/ผู้เล่นเป้าหมาย |
 
 ### การตั้งค่าสิทธิ์และไอเทมสำหรับ AdminSystem
 - **`AdminConfig.AdminUserIds`**: เพิ่มรายชื่อแอดมินด้วย `UserId` (ตัวเลข) เช่น `[123456789] = true` ใน `src/shared/Modules/AdminConfig.luau` (ห้ามใช้ Username เพราะผู้เล่นเปลี่ยนชื่อได้)
 - **`AdminConfig.GroupConfig` & `AuthCacheTTLSeconds`**: กำหนด `GroupId > 0` และ `MinAdminRank` (ค่าเริ่มต้น `250`) เพื่ออนุญาตผู้ดูแลจากยศใน Roblox Group อัตโนมัติ โดย Cache สิทธิ์จะมีอายุตาม `AuthCacheTTLSeconds` (ค่าเริ่มต้น `90` วินาที) ทำให้การถอดยศกลุ่มมีผลระหว่างเซสชันทันที (`verifyAdminAccess` จะตัดสิทธิ์และปิดหน้าต่างฝั่ง Client อัตโนมัติ)
 - **`AdminConfig.AllowStudioAccess` & `StudioNonAdminTestUserIds`**: ค่าเริ่มต้น `AllowStudioAccess = true` เพื่อให้ทดสอบหน้าต่าง Admin ใน Roblox Studio ได้ทันที และสามารถระบุ `StudioNonAdminTestUserIds = { [-2] = true }` เพื่อยกเว้นผู้เล่นทดสอบบางรายใน Studio Local Server (เช่น Player2) สำหรับทดสอบ QA สิทธิ์ผู้เล่นทั่วไป
 - **`AdminConfig.AutoCreateStudioDummyTools` & `ServerStorage.AllItems`**: ไอเทมที่จะเสกผ่านแท็บ `Item Spawner` ต้องมีทั้งข้อมูลใน `ToolConfig.Items` และมีโมเดล `Tool` ชื่อตรงกันอยู่ใน `ServerStorage.AllItems` หากขาดตัวใด ระบบจะแจ้งเตือนใน Console ฝั่ง Server และขึ้นป้าย `[ขาด Tool ใน Studio]` บนการ์ดไอเทม หรือหากตั้ง `AutoCreateStudioDummyTools = true` (ทำงานเฉพาะใน Roblox Studio) ระบบจะสร้าง Placeholder Tool ให้ใน `ServerStorage.AllItems` อัตโนมัติโดยไม่เขียนทับของเดิม
-- **Audit Log แบบแยก Ring Buffer (`MaxCriticalAuditLogEntries` / `MaxAuditLogEntries`)**: แยกเก็บประวัติคำสั่งที่มีผลต่อเศรษฐกิจ (`GiveItem`, `SelfGiveItem`) ไว้ใน Critical Buffer (`50` รายการ พร้อม `warn` ออก Server Console) แยกจาก General Buffer (`50` รายการ พร้อม `print` ออก Console) เพื่อป้องกันไม่ให้การกดปรับความเร็วรัวๆ ดันประวัติการเสกไอเทมหายไปจากระบบ
+- **เสกสัตว์เลี้ยง (`PetSpawner` / `PetService:GrantPets`)**: แท็บที่ 5 `เสกสัตว์เลี้ยง (Pets)` ช่วยให้แอดมินค้นหา/กรองตาม Rarity, เลือก Stage (`Baby`/`Juvenile`/`Adult`/`Evolved`), โหมดเริ่มต้น (`InPlot`/`Stored`) และจำนวนสูงสุดต่อครั้ง (`AdminConfig.MaxPetSpawnAmountPerAction = 10`) โดยฝั่ง Server เรียก `PetService:GrantPets` เพื่อตรวจ `MaxPetCapacity`, คำนวณ `GrowthExp`/`Level` ตาม `PetConfig.Species`, ซิงก์โมเดลและส่ง `PetNetwork.SyncState` เพียงครั้งเดียว
+- **Audit Log แบบแยก Ring Buffer (`MaxCriticalAuditLogEntries` / `MaxAuditLogEntries`)**: แยกเก็บประวัติคำสั่งที่มีผลต่อเศรษฐกิจ (`GiveItem`, `SelfGiveItem`, `SpawnPet`, `SelfSpawnPet`) ไว้ใน Critical Buffer (`50` รายการ พร้อม `warn` ออก Server Console) แยกจาก General Buffer (`50` รายการ พร้อม `print` ออก Console) เพื่อป้องกันไม่ให้การกดปรับความเร็วรัวๆ ดันประวัติการเสกไอเทมหรือสัตว์เลี้ยงหายไปจากระบบ
 
 ---
 
@@ -455,6 +459,7 @@ Namespace ที่ใช้งานอยู่:
   - `InspectPlayer` — แอดมินส่ง `TargetUserId` (`float64`) เพื่อขอดูรายละเอียดและไอเทมในกระเป๋าของผู้เล่นเป้าหมาย
   - `SyncPlayerDetail` — Server ส่งข้อมูลเชิงลึกของผู้เล่นเป้าหมาย (`AdminPlayerDetailStruct` พร้อมรายการ `AdminStackItemStruct`)
   - `GiveItem` — แอดมินส่งคำสั่งเสกไอเทม (`TargetUserId`, `ItemId`, `Amount`) ให้ตัวเองหรือผู้เล่นเป้าหมาย
+  - `SpawnPet` — แอดมินส่งคำสั่งเสกสัตว์เลี้ยง (`TargetUserId`, `SpeciesId`, `Stage`, `Amount`, `InitialState`) ให้ตัวเองหรือผู้เล่นเป้าหมายผ่าน `PetService:GrantPets`
   - `SetSelfWalkSpeed` — แอดมินส่งคำสั่งปรับความเร็วเดินของตัวเอง (`WalkSpeed`, ช่วง 4–120)
   - `NotifyToast` — Server ส่งข้อความแจ้งเตือนผลลัพธ์ (สำเร็จ/ผิดพลาด หรือแจ้งผู้รับไอเทม) ไปแสดงบน `ErrorToast`
 - **`NPCNetwork`**

@@ -21,7 +21,7 @@ end
 
 local function HotbarSlot(props: Props)
 	local children = {
-		Corner = e("UICorner", { CornerRadius = UDim.new(0, 12) }),
+		Corner = e("UICorner", { CornerRadius = UDim.new(0, 4) }),
 		Stroke = e("UIStroke", {
 			Thickness = 2,
 			Color = Color3.fromRGB(58, 64, 84),
@@ -63,7 +63,7 @@ local function HotbarSlot(props: Props)
 				end
 			end,
 		}, {
-			Corner = e("UICorner", { CornerRadius = UDim.new(0, 8) }),
+			Corner = e("UICorner", { CornerRadius = UDim.new(0, 4) }),
 			Stroke = e("UIStroke", {
 				Thickness = 1.5,
 				Color = if hasItem
@@ -74,7 +74,7 @@ local function HotbarSlot(props: Props)
 			Icon = hasImage and e("ImageLabel", {
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.fromScale(0.5, 0.48),
-				Size = UDim2.fromScale(0.68, 0.68),
+				Size = UDim2.fromScale(1,1),
 				Image = stackData.Image,
 				BackgroundTransparency = 1,
 				ScaleType = Enum.ScaleType.Fit,
@@ -94,9 +94,10 @@ local function HotbarSlot(props: Props)
 
 			CountBadge = hasItem and e("Frame", {
 				AnchorPoint = Vector2.new(1, 1),
-				Position = UDim2.new(1, -4, 1, -4),
+				Position = UDim2.new(1,0,1,0),
 				Size = UDim2.fromOffset(28, 16),
 				BackgroundColor3 = Color3.fromRGB(16, 18, 26),
+				BackgroundTransparency = 1
 			}, {
 				Corner = e("UICorner", { CornerRadius = UDim.new(0, 4) }),
 				Count = e("TextLabel", {
@@ -105,15 +106,16 @@ local function HotbarSlot(props: Props)
 					Text = `x{stackData.Count}`,
 					Font = Enum.Font.GothamBold,
 					TextSize = 10,
-					TextColor3 = Color3.fromRGB(255, 215, 110),
-				}),
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+				},{e("UIStroke",{Thickness = 1})})
 			}),
 
 			NumberBadge = e("Frame", {
-				Position = UDim2.fromOffset(4, 4),
+				Position = UDim2.fromOffset(0,0),
 				Size = UDim2.fromOffset(18, 18),
 				BackgroundColor3 = Color3.fromRGB(16, 18, 26),
-				BackgroundTransparency = 0.2,
+				BackgroundTransparency = 1,
+				ZIndex = 4
 			}, {
 				Corner = e("UICorner", { CornerRadius = UDim.new(0, 4) }),
 				Number = e("TextLabel", {
@@ -121,9 +123,9 @@ local function HotbarSlot(props: Props)
 					Text = tostring(i % 10),
 					Font = Enum.Font.GothamBold,
 					TextSize = 11,
-					TextColor3 = Color3.fromRGB(165, 175, 200),
+					TextColor3 = Color3.fromRGB(255, 255, 255),
 					BackgroundTransparency = 1,
-				}),
+				},{e("UIStroke",{Thickness = 1})}),
 			}),
 		})
 	end
@@ -132,8 +134,8 @@ local function HotbarSlot(props: Props)
 		Size = UDim2.new(0.68, 0, 0, 74),
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 0.98, 0),
-		BackgroundColor3 = Color3.fromRGB(16, 18, 25),
-		BackgroundTransparency = 0.08,
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BackgroundTransparency = 0.5,
 	}, children)
 end
 

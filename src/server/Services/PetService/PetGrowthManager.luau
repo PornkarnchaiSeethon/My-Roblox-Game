@@ -61,7 +61,6 @@ function PetGrowthManager.FeedPet(
 		return false, "ไม่สามารถหักไอเทมอาหารได้", false
 	end
 
-	-- โบนัส EXP 1.25 เท่าหากเป็นอาหารโปรดของสายพันธุ์นั้น
 	local isFavorite = species.FavoriteFood == foodItemId
 	local expMultiplier = if isFavorite then 1.25 else 1.0
 	local gainedExp = math.floor(foodStats.GrowthExp * expMultiplier)
@@ -72,7 +71,6 @@ function PetGrowthManager.FeedPet(
 	petData.LastFedAt = os.time()
 	petData.Level = math.clamp(1 + math.floor(math.sqrt(petData.GrowthExp / 25)), 1, 100)
 
-	-- อัปเดต Stage อัตโนมัติ (ยกเว้นขั้น Evolved ที่ต้องกดยืนยันหรือใช้ Catalyst)
 	if petData.Stage == "Baby" and petData.GrowthExp >= species.StageThresholds.Juvenile then
 		petData.Stage = "Juvenile"
 	end

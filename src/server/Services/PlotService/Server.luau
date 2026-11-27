@@ -20,7 +20,6 @@ local function setupPlayerSpawnAtPlot(player: Player)
 	end
 
 	characterConnections[player] = player.CharacterAdded:Connect(function(character)
-		-- Ensure character spawns on their assigned plot (handles initial join before RespawnLocation applies & any fallback)
 		task.defer(function()
 			local plot = PlotManager.getPlot(player)
 			if not plot then
@@ -32,7 +31,6 @@ local function setupPlayerSpawnAtPlot(player: Player)
 			end
 			local hrp = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 5)
 			if hrp and hrp:IsA("BasePart") then
-				-- Wait one physics step so Roblox default SpawnLocation placement cannot overwrite PivotTo
 				task.wait()
 				if character.Parent and (hrp.Position - spawnCF.Position).Magnitude > 12 then
 					PlotManager.teleportToPlot(player, character)
@@ -117,6 +115,7 @@ function PlotService:KnitStart()
 			characterConnections[player]:Disconnect()
 			characterConnections[player] = nil
 		end
+		task.defer(PlotStorage.cleanup, player)
 	end)
 
 	game:BindToClose(function()

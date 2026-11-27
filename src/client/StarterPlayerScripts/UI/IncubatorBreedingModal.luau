@@ -137,7 +137,6 @@ local function IncubatorBreedingModal(props: Props)
 				}),
 			})
 		else
-			-- เลือกไข่จากกระเป๋าเข้าเครื่องฟัก
 			local eggButtons: { [string]: any } = {
 				Padding = e("UIPadding", {
 					PaddingTop = UDim.new(0, 8),
@@ -202,7 +201,6 @@ local function IncubatorBreedingModal(props: Props)
 				})
 		end
 	else
-		-- โหมด Breeding Pen
 		local activePen: Types.BreedingPenClientData? = nil
 		for _, pen in props.breedingPens do
 			if pen.ObjectId == modal.ObjectId then
@@ -279,7 +277,6 @@ local function IncubatorBreedingModal(props: Props)
 				}),
 			})
 		else
-			-- เลือกสัตว์เลี้ยงโตเต็มวัย 2 ตัวในฟาร์ม
 			local eligiblePets: { Types.PetInstanceData } = {}
 			for _, pet in props.pets do
 				local isAdult = pet.Stage == "Adult" or pet.Stage == "Evolved"

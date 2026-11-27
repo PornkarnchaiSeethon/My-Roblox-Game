@@ -4,7 +4,6 @@ local available: { BasePart } = {}
 local used: { [number]: BasePart } = {}
 local initialized = false
 
-
 local function initialize()
 	if initialized then return end
 	initialized = true
@@ -21,7 +20,6 @@ local function initialize()
 	end
 end
 
--- ดึงจุดวาง Plot ที่ว่างอยู่ให้ผู้เล่น
 function PlotSpawnPool.get(player: Player): BasePart
 	initialize()
 
@@ -36,7 +34,6 @@ function PlotSpawnPool.get(player: Player): BasePart
 	return plotSpawn
 end
 
--- คืนจุดวาง Plot กลับเข้ากองกลางเมื่อผู้เล่นออกจากเกม
 function PlotSpawnPool.returnPlot(player: Player)
 	local plotSpawn = used[player.UserId]
 	if plotSpawn then

@@ -58,7 +58,6 @@ local function PetBarnFrame(props: Props)
 		end
 	end
 
-	-- แถบตัวกรองด้านบน
 	local filterChildren: { [string]: any } = {
 		Layout = e("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -89,7 +88,6 @@ local function PetBarnFrame(props: Props)
 		})
 	end
 
-	-- ตารางรายการสัตว์เลี้ยง
 	local gridChildren: { [string]: any } = {
 		Padding = e("UIPadding", {
 			PaddingTop = UDim.new(0, 10),
@@ -120,7 +118,6 @@ local function PetBarnFrame(props: Props)
 		end
 	end
 
-	-- แผงรายละเอียดด้านขวา
 	local detailContent: any
 	if not selectedPet then
 		detailContent = e("TextLabel", {
@@ -164,7 +161,6 @@ local function PetBarnFrame(props: Props)
 		local catalystCount = if requiredCatalyst then countInventoryItem(props.inventoryData, requiredCatalyst) else 1
 		local breedCooldownLeft = math.max(0, (pet.BreedCooldownUntil or 0) - os.time())
 
-		-- ปุ่มอาหารที่มีในกระเป๋า
 		local foodButtons: { [string]: any } = {
 			Layout = e("UIListLayout", {
 				FillDirection = Enum.FillDirection.Horizontal,

@@ -91,7 +91,6 @@ local function PlantModal(props: PlantModalProps)
 	local bodyElement: any
 
 	if not planterState then
-		-- แปลงว่าง: แสดงรายการเมล็ดพันธุ์ทั้งหมดจาก PlantConfig.Crops
 		local sortedCrops = getSortedCrops()
 		local listChildren: { [string]: any } = {
 			Padding = e("UIPadding", {
@@ -154,7 +153,6 @@ local function PlantModal(props: PlantModalProps)
 			}, listChildren),
 		})
 	else
-		-- แปลงที่มีพืชกำลังเติบโตหรือสุกแล้ว
 		local cropDef = PlantConfig.Crops[planterState.CropId]
 		local cropName = if cropDef then cropDef.DisplayName else tostring(planterState.CropId)
 		local rarity = if cropDef then cropDef.Rarity else "Common"
@@ -185,7 +183,6 @@ local function PlantModal(props: PlantModalProps)
 			}),
 		}
 
-		-- การ์ดสถานะพืช
 		scrollChildren.StatusCard = e("Frame", {
 			LayoutOrder = 1,
 			Size = UDim2.new(1, 0, 0, 124),
@@ -301,7 +298,6 @@ local function PlantModal(props: PlantModalProps)
 			}),
 		})
 
-		-- ปุ่มเก็บเกี่ยว (สีทองเมื่อ Mature)
 		if isMature then
 			scrollChildren.HarvestBtn = e("TextButton", {
 				LayoutOrder = 2,
@@ -322,7 +318,6 @@ local function PlantModal(props: PlantModalProps)
 			})
 		end
 
-		-- ปุ่มรดน้ำ
 		scrollChildren.WaterBtn = e("TextButton", {
 			LayoutOrder = 3,
 			Size = UDim2.new(1, 0, 0, 40),
@@ -353,7 +348,6 @@ local function PlantModal(props: PlantModalProps)
 			}),
 		})
 
-		-- ปุ่มปุ๋ยทุกชนิดจาก PlantConfig.Fertilizers (เมื่อยังไม่ Mature และยังไม่เคยใส่ปุ๋ย)
 		if not isMature and activeFertId == "" then
 			local fertIds = getSortedFertilizerIds()
 			for idx, fertId in fertIds do
@@ -397,7 +391,6 @@ local function PlantModal(props: PlantModalProps)
 			end
 		end
 
-		-- ปุ่มถอนต้นไม้ (สีแดง)
 		scrollChildren.UprootBtn = e("TextButton", {
 			LayoutOrder = 50,
 			Size = UDim2.new(1, 0, 0, 38),

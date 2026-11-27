@@ -181,7 +181,7 @@ local PlantNetwork = ByteNet.defineNamespace("PlantNetwork", function()
 			reliabilityType = "unreliable",
 			value = ByteNet.struct({
 				ObjectId = ByteNet.string,
-				EventType = ByteNet.string, -- "Plant" | "Water" | "Fertilize" | "Mature" | "Harvest"
+				EventType = ByteNet.string,
 				WorldPos = ByteNet.vec3,
 			}),
 		}),
@@ -284,6 +284,15 @@ local AdminNetwork = ByteNet.defineNamespace("AdminNetwork", function()
 				TargetUserId = ByteNet.float64,
 				ItemId = ByteNet.string,
 				Amount = ByteNet.uint16,
+			}),
+		}),
+		SpawnPet = ByteNet.definePacket({
+			value = ByteNet.struct({
+				TargetUserId = ByteNet.float64,
+				SpeciesId = ByteNet.string,
+				Stage = ByteNet.string,
+				Amount = ByteNet.uint8,
+				InitialState = ByteNet.string,
 			}),
 		}),
 		SetSelfWalkSpeed = ByteNet.definePacket({

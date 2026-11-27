@@ -49,7 +49,7 @@ local PetConfig = {}
 
 PetConfig.MaxHunger = 100
 PetConfig.HungerDecayPerMinute = 2
-PetConfig.BreedCooldownSeconds = 900 -- 15 นาทีต่อการผสมพันธุ์ 1 ครั้ง
+PetConfig.BreedCooldownSeconds = 900
 PetConfig.DefaultMaxPetCapacity = 20
 PetConfig.DefaultMaxEquippedCombat = 3
 
@@ -72,8 +72,8 @@ PetConfig.Eggs = {
 } :: { [string]: EggDefinition }
 
 PetConfig.Species = {
-	sprout_slime = {
-		DisplayName = "Sprout Slime",
+	simple_pet = {
+		DisplayName = "Simple Pet",
 		Rarity = "Common",
 		BaseHP = 120,
 		BaseATK = 15,
@@ -85,7 +85,7 @@ PetConfig.Species = {
 		EvolutionTarget = nil,
 		EvolutionItem = nil,
 		ModelByStage = {
-			Baby = "sprout_slime_Baby",
+			Baby = "simple_pet",
 			Juvenile = "sprout_slime_Adult",
 			Adult = "sprout_slime_Adult",
 			Evolved = "sprout_slime_Adult",
@@ -93,7 +93,6 @@ PetConfig.Species = {
 	},
 } :: { [string]: SpeciesDefinition }
 
--- ตารางจับคู่ผสมพันธุ์ (เรียงชื่อ SpeciesId ตามตัวอักษรคั่นด้วย '|')
 PetConfig.BreedingRecipes = {
 	["sprout_slime|sprout_slime"] = {
 		DurationSeconds = 300,

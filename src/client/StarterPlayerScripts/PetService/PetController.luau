@@ -188,7 +188,6 @@ function PetController.Start()
 		PetController.Notify()
 	end)
 
-	-- ปุ่มลัด P สำหรับเปิดหน้าต่างสัตว์เลี้ยง (และมีปุ่มบนจอสำหรับ Mobile)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
 			return

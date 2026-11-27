@@ -25,7 +25,6 @@ function PlotManager.registerDeleteValidator(validator: (Player, Model) -> (bool
 	table.insert(deleteValidators, validator)
 end
 
--- ตั้งค่า Attribute ObjectId และ ProximityPrompt สำหรับ Functional Plot Objects (Incubator / BreedingPen / Farming Objects)
 function PlotManager.setupObject(player: Player, objectModel: Model, savedObjectId: string?)
 	local modalType = PetConfig.FunctionalPlotObjects[objectModel.Name]
 	local isFarmingObject = PlantConfig.IsFarmingObject(objectModel.Name)
@@ -160,7 +159,6 @@ function PlotManager.teleportToPlot(player: Player, characterOverride: Model?)
 	hrp.AssemblyAngularVelocity = Vector3.zero
 end
 
--- สร้าง Plot ประจำตัวผู้เล่น
 function PlotManager.spawnPlot(player: Player): Model
 	local existingPlot = plots[player.UserId]
 	if existingPlot then
@@ -210,7 +208,6 @@ function PlotManager.getPlot(player: Player): Model?
 	return plots[player.UserId]
 end
 
--- ลบ Plot และคืนพื้นที่เมื่อผู้เล่นออก
 function PlotManager.removePlot(player: Player)
 	if player.RespawnLocation == plotPlayerSpawns[player.UserId] then
 		player.RespawnLocation = nil
@@ -225,7 +222,6 @@ function PlotManager.removePlot(player: Player)
 	PlotSpawnPool.returnPlot(player)
 end
 
--- วางวัตถุลงใน Plot หลังผ่านการตรวจสอบความถูกต้อง
 function PlotManager.place(player: Player, name: string, targetCF: CFrame): boolean
 	if typeof(name) ~= "string" then
 		return false
@@ -279,7 +275,6 @@ function PlotManager.place(player: Player, name: string, targetCF: CFrame): bool
 	return true
 end
 
--- ลบวัตถุออกจาก Plot ของผู้เล่น
 function PlotManager.delete(player: Player, targetInstance: Instance): boolean
 	local plot = plots[player.UserId]
 	local objectsFolder = plot and plot:FindFirstChild("Objects")

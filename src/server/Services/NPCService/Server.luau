@@ -260,7 +260,6 @@ function NPCService:KnitStart()
 	end
 
 	Players.PlayerAdded:Connect(function(player: Player)
-		-- Defer so ByteNet's PlayerAdded handler initializes per-player channels first (LIFO signal order)
 		task.defer(function()
 			if player.Parent then
 				syncBossesForPlayer(player, EnemyController.GetActiveBossEntries())

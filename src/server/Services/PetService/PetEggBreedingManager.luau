@@ -168,7 +168,6 @@ function PetEggBreedingManager.ClaimBreedingEgg(
 		return false, "การผสมพันธุ์ยังไม่เสร็จสมบูรณ์"
 	end
 
-	-- ตรวจสอบและส่งไข่เข้ากระเป๋าผ่าน InventoryService (ป้องกันไข่หายเมื่อกระเป๋าเต็ม)
 	local given = inventoryService.GiveItem(player, pen.ResultEggItemId)
 	if not given then
 		return false, "กระเป๋าไอเทมเต็ม กรุณาเคลียร์ช่องว่างก่อนรับไข่"

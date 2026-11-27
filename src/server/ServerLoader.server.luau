@@ -21,7 +21,6 @@ for _, moduleScript in ServicesFolder:GetDescendants() do
 		continue
 	end
 
-	-- รองรับ Module แบบเดิมที่ไม่ได้สร้างผ่าน Knit.CreateService แต่มี Init/Start
 	local isKnitService = type(result.Name) == "string" and result.KnitComm ~= nil
 	if not isKnitService and (type(result.Init) == "function" or type(result.Start) == "function") then
 		table.insert(legacyModules, { name = moduleScript.Name, module = result })

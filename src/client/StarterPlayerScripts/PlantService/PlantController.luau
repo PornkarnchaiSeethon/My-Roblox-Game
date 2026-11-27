@@ -194,7 +194,6 @@ function PlantController.Start()
 		local heldTool = getHeldToolName()
 		local currentPlanter = PlantController.State.PlantersById[payload.ObjectId]
 
-		-- ทางลัดอัตโนมัติตามไอเทมที่ถือในมือขณะกดโต้ตอบแปลงปลูก
 		if not currentPlanter and heldTool and PlantConfig.Crops[heldTool] then
 			PlantController.PlantSeed(payload.ObjectId, heldTool)
 			return
@@ -224,7 +223,6 @@ function PlantController.Start()
 		PlantController.Notify()
 	end)
 
-	-- ปุ่มลัด H สำหรับเปิดหน้าต่าง Farm & Almanac (และมีปุ่มบนจอสำหรับ Mobile)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
 			return

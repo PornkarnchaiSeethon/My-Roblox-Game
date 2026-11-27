@@ -456,6 +456,39 @@ storyAdminClient = {
 	GiveItemToSelf = function(itemId, amount)
 		storyAdminClient.GiveItemToTarget(1001, itemId, amount)
 	end,
+	SpawnPetToTarget = function(targetUserId, speciesId, stage, amount, initialState)
+		local resolvedState = if initialState and initialState ~= "" then initialState else "InPlot"
+		local targetDetail = storyAdminDetailsById[targetUserId]
+		local targetName = if targetDetail then targetDetail.DisplayName else tostring(targetUserId)
+
+		if targetDetail then
+			local updatedDetail = table.clone(targetDetail)
+			updatedDetail.PetCount = (updatedDetail.PetCount or 0) + amount
+			storyAdminDetailsById[targetUserId] = updatedDetail
+			if storyAdminClient.State.SelectedUserId == targetUserId then
+				storyAdminClient.State.SelectedPlayerDetail = updatedDetail
+			end
+		end
+
+		local nextLogs = table.clone(storyAdminClient.State.AuditLogs)
+		table.insert(nextLogs, 1, {
+			Timestamp = os.time(),
+			AdminName = "DevAdmin",
+			Action = if targetUserId == 1001 then "SelfSpawnPet" else "SpawnPet",
+			TargetName = targetName,
+			Detail = `{speciesId} [{stage}/{resolvedState}] x{amount}`,
+		})
+		storyAdminClient.State.AuditLogs = nextLogs
+		storyAdminClient.State.LastToast = {
+			IsError = false,
+			Message = `เสกสัตว์เลี้ยง {speciesId} ({stage}/{resolvedState}) x{amount} ให้ {targetName} สำเร็จ!`,
+			Timestamp = os.time(),
+		}
+		notifyList(adminListeners)
+	end,
+	SpawnPetToSelf = function(speciesId, stage, amount, initialState)
+		storyAdminClient.SpawnPetToTarget(1001, speciesId, stage, amount, initialState)
+	end,
 	SetSelfWalkSpeed = function(walkSpeed)
 		storyAdminClient.State.SelfWalkSpeed = walkSpeed
 		local nextPlayers = table.clone(storyAdminClient.State.PlayersList)

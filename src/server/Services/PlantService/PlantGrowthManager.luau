@@ -134,7 +134,6 @@ function PlantGrowthManager.StepPlanterGrowth(
 		planterData.MoistureUntil = math.max(planterData.MoistureUntil or 0, now + cropDef.MoistureDurationSeconds)
 	end
 
-	-- คำนวณเวลาช่วงที่ดินชุ่มชื้นเทียบกับช่วงที่ดินแห้ง (รองรับการคำนวณ Offline Catch-up อย่างแม่นยำ)
 	local prevTime = now - elapsed
 	local wetSeconds = math.clamp((planterData.MoistureUntil or 0) - prevTime, 0, elapsed)
 	local drySeconds = elapsed - wetSeconds
@@ -193,7 +192,6 @@ function PlantGrowthManager.HarvestCrop(
 		end
 	end
 
-	-- มอบไอเทมเข้ากระเป๋าทีละชิ้น หากกระเป๋าเต็มตั้งแต่ชิ้นแรกจะยกเลิกธุรกรรมและไม่ลบต้นไม้
 	local granted = 0
 	for _ = 1, yieldCount do
 		if inventoryService.GiveItem(player, cropDef.HarvestItemId) then
@@ -207,7 +205,6 @@ function PlantGrowthManager.HarvestCrop(
 		return false, "กระเป๋าสัมภาระเต็ม (สูงสุด 20 กอง) กรุณาจัดกระเป๋าก่อนเก็บเกี่ยว", 0
 	end
 
-	-- อัปเดตสถิติ HarvestStats, Cash และ EXP อย่างปลอดภัย (ป้องกัน Division by Zero)
 	if type(plantsData.HarvestStats) ~= "table" then
 		plantsData.HarvestStats = {}
 	end
